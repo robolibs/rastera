@@ -1,0 +1,36 @@
+[package]
+name = "concord"
+version = "0.0.1"
+edition = "2024"
+description = "Rust coordinate transformation library for robotics"
+license = "MIT"
+readme = "README.md"
+publish = false
+include = [
+    "Cargo.toml",
+    "pyproject.toml",
+    "README.md",
+    "LICENSE",
+    "include/**/*.h",
+    "src/**/*.rs",
+    "examples/**/*.rs",
+    "tests/**/*.rs",
+]
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = []
+python = ["dep:pyo3", "pyo3/abi3-py39", "pyo3/auto-initialize"]
+python-extension = ["python", "pyo3/extension-module"]
+
+[dependencies]
+datapod = { git = "https://codeberg.org/robolibs/datapod.git" }
+graphix = { git = "https://codeberg.org/robolibs/graphix.git" }
+kiddo = "4.2"
+pyo3 = { version = "0.23", optional = true }
+rayon = "1.10"
+thiserror = "2.0"
+tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
