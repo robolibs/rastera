@@ -8,13 +8,13 @@ endif
 
 TOP_DIR := $(CURDIR)
 CARGO := cargo
-EXAMPLE ?= main
+EXAMPLE ?= smoke
 
 $(info ------------------------------------------)
 $(info Project: $(PROJECT_NAME) v$(PROJECT_VERSION))
 $(info ------------------------------------------)
 
-.PHONY: build b compile c run r test t check fmt bench clean help h
+.PHONY: build b compile c run r test t check fmt clean help h
 
 build:
 	@$(CARGO) build --lib --examples
@@ -43,9 +43,6 @@ check:
 fmt:
 	@$(CARGO) fmt --all
 
-bench:
-	@$(CARGO) bench --bench core_workloads -- --quick
-
 clean:
 	@$(CARGO) clean
 
@@ -60,12 +57,11 @@ help:
 	@echo "  test         Run all tests"
 	@echo "  check        Run cargo check on all targets"
 	@echo "  fmt          Format the workspace"
-	@echo "  bench        Run the custom benchmark target"
 	@echo "  clean        Remove Cargo build artifacts"
 	@echo
 	@echo "Examples:"
 	@echo "  make run"
-	@echo "  make run EXAMPLE=simple_graph"
+	@echo "  make run EXAMPLE=smoke"
 	@echo
 
 h: help

@@ -1,17 +1,15 @@
 [package]
-name = "concord"
+name = "rastera"
 version = "0.0.1"
 edition = "2024"
-description = "Rust coordinate transformation library for robotics"
+description = "Rust GeoTIFF and raster library translated from rastkit"
 license = "MIT"
 readme = "README.md"
 publish = false
 include = [
     "Cargo.toml",
-    "pyproject.toml",
     "README.md",
-    "LICENSE",
-    "include/**/*.h",
+    "PLAN.md",
     "src/**/*.rs",
     "examples/**/*.rs",
     "tests/**/*.rs",
@@ -19,18 +17,9 @@ include = [
 
 [lib]
 path = "src/lib.rs"
-crate-type = ["rlib", "cdylib"]
-
-[features]
-default = []
-python = ["dep:pyo3", "pyo3/abi3-py39", "pyo3/auto-initialize"]
-python-extension = ["python", "pyo3/extension-module"]
 
 [dependencies]
+concord = { git = "https://codeberg.org/robolibs/concord.git" }
 datapod = { git = "https://codeberg.org/robolibs/datapod.git" }
-graphix = { git = "https://codeberg.org/robolibs/graphix.git" }
-kiddo = "4.2"
-pyo3 = { version = "0.23", optional = true }
-rayon = "1.10"
+rgb = "0.8"
 thiserror = "2.0"
-tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }

@@ -1,5 +1,5 @@
 {
-  description = "graphix Rust library development shell";
+  description = "rastera Rust library development shell";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
