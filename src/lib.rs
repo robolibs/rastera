@@ -3,9 +3,14 @@
 //! The current implementation establishes the foundational data model used by
 //! the planned TIFF and GeoTIFF parser/writer layers.
 
+#![deny(unsafe_op_in_unsafe_fn)]
+
 pub mod color;
 pub mod error;
+pub mod ffi;
 pub mod parser;
+#[cfg(feature = "python")]
+pub mod python;
 pub mod raster;
 pub mod tags;
 pub mod types;
