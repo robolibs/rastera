@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
 
-use datapod::adapters::Optional;
 use datapod::{Geo, Grid, Layer as SpatialLayer, Point, Pose, Vector};
 
 use crate::color::Rgba8;
@@ -281,10 +280,6 @@ impl Layer {
         self.grid.samples_per_pixel()
     }
 
-    pub fn planar_config(&self) -> u16 {
-        1
-    }
-
     pub fn bits_per_sample(&self) -> u16 {
         self.grid.bits_per_sample()
     }
@@ -295,21 +290,6 @@ impl Layer {
 
     pub fn photometric_interpretation(&self) -> PhotometricInterpretation {
         self.grid.photometric_interpretation()
-    }
-
-    pub fn is_color_layer(&self) -> bool {
-        self.grid.is_color()
-    }
-
-    pub fn get_point(&self, row: usize, col: usize) -> Point {
-        self.grid.get_point(row, col)
-    }
-
-    pub fn grid_opt_u8(&self) -> Optional<&Grid<u8>> {
-        match &self.grid {
-            GridData::U8(grid) => Some(grid),
-            _ => None,
-        }
     }
 
     pub fn set_custom_tag(&mut self, tag: u16, values: Vec<u32>) -> crate::Result<()> {

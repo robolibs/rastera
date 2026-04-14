@@ -211,7 +211,6 @@ fn encode_layer(
                 bo,
                 planar_config,
                 plane,
-                samples_per_pixel,
             )?;
             strips.push(EncodedStrip { bytes });
         }
@@ -289,7 +288,7 @@ fn encode_layer(
         short_entry(TAG_COMPRESSION, 1),
         short_entry(
             TAG_PHOTOMETRIC,
-            photometric_value(&layer.grid, samples_per_pixel, layer.palette.is_some()),
+            photometric_value(&layer.grid, layer.palette.is_some()),
         ),
         IfdEntry {
             tag: TAG_IMAGE_DESCRIPTION,
@@ -754,7 +753,7 @@ fn grid_shape(grid: &GridData) -> (u32, u32, u16, u16, SampleFormat, usize) {
     (cols as u32, rows as u32, bits, spp, fmt, bytes_per_pixel)
 }
 
-fn photometric_value(grid: &GridData, _samples_per_pixel: u16, has_palette: bool) -> u16 {
+fn photometric_value(grid: &GridData, has_palette: bool) -> u16 {
     if has_palette {
         return 3;
     }
@@ -784,7 +783,6 @@ fn encode_strip_bytes(
     bo: ByteOrder,
     planar_config: u16,
     plane: u32,
-    samples_per_pixel: u16,
 ) -> Result<Vec<u8>> {
     let start = start_row as usize;
     let end = end_row as usize;
@@ -882,7 +880,6 @@ fn encode_strip_bytes(
             }
         }
     }
-    let _ = samples_per_pixel;
     Ok(out)
 }
 

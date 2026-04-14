@@ -59,21 +59,6 @@ pub struct RasteraRgba {
     pub a: u8,
 }
 
-#[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RasteraGridKind {
-    Unknown = 0,
-    U8 = 1,
-    I8 = 2,
-    U16 = 3,
-    I16 = 4,
-    U32 = 5,
-    I32 = 6,
-    F32 = 7,
-    F64 = 8,
-    Rgba8 = 9,
-}
-
 pub struct RasteraRasterHandle {
     inner: Raster,
 }
@@ -645,6 +630,50 @@ pub extern "C" fn rastera_read_rgba8_size(
     unsafe {
         ptr::write(out_rows, rows);
         ptr::write(out_cols, cols);
+    }
+    ok()
+}
+
+/// Read an RGBA raster into a caller-provided buffer. `capacity` must be at
+/// least `rows * cols`, as reported by `rastera_read_rgba8_size`.
+#[unsafe(no_mangle)]
+pub extern "C" fn rastera_read_rgba8_into(
+    path: *const c_char,
+    out_pixels: *mut RasteraRgba,
+    capacity: usize,
+) -> bool {
+    if out_pixels.is_null() {
+        return fail("null output buffer");
+    }
+    let path_str = match cstr_to_str(path, "path") {
+        Ok(s) => s,
+        Err(err) => return fail(err.to_string()),
+    };
+    let collection = match crate::read_raster_collection(path_str) {
+        Ok(c) => c,
+        Err(err) => return fail(err.to_string()),
+    };
+    let Some(layer) = collection.layers.first() else {
+        return fail("no layers in file");
+    };
+    let grid = match &layer.grid {
+        GridData::Rgba8(g) => g,
+        _ => return fail("first layer is not an RGBA grid"),
+    };
+    let needed = grid.rows * grid.cols;
+    if capacity < needed {
+        return fail(format!(
+            "buffer capacity {capacity} is smaller than required {needed}"
+        ));
+    }
+    let slice = unsafe { std::slice::from_raw_parts_mut(out_pixels, needed) };
+    for (dst, src) in slice.iter_mut().zip(grid.data.as_slice().iter()) {
+        *dst = RasteraRgba {
+            r: src.r,
+            g: src.g,
+            b: src.b,
+            a: src.a,
+        };
     }
     ok()
 }

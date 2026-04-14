@@ -42,19 +42,6 @@ typedef struct {
   uint8_t a;
 } RasteraRgba;
 
-typedef enum {
-  RASTERA_GRID_KIND_UNKNOWN = 0,
-  RASTERA_GRID_KIND_U8 = 1,
-  RASTERA_GRID_KIND_I8 = 2,
-  RASTERA_GRID_KIND_U16 = 3,
-  RASTERA_GRID_KIND_I16 = 4,
-  RASTERA_GRID_KIND_U32 = 5,
-  RASTERA_GRID_KIND_I32 = 6,
-  RASTERA_GRID_KIND_F32 = 7,
-  RASTERA_GRID_KIND_F64 = 8,
-  RASTERA_GRID_KIND_RGBA8 = 9,
-} RasteraGridKind;
-
 /* Error handling */
 const char* rastera_last_error_message(void);
 void rastera_string_free(char* ptr);
@@ -129,6 +116,10 @@ bool rastera_write_rgba8(
     RasteraGeo3 datum,
     double resolution);
 bool rastera_read_rgba8_size(const char* path, size_t* out_rows, size_t* out_cols);
+bool rastera_read_rgba8_into(
+    const char* path,
+    RasteraRgba* out_pixels,
+    size_t capacity);
 
 #ifdef __cplusplus
 }

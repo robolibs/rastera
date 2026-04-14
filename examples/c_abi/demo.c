@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../../include/rastera.h"
@@ -118,6 +119,24 @@ int main(void) {
     return 1;
   }
   printf("rgba %s -> %zu x %zu\n", rgba_path, rgba_rows, rgba_cols);
+
+  size_t capacity = rgba_rows * rgba_cols;
+  RasteraRgba* read_back = (RasteraRgba*)calloc(capacity, sizeof(RasteraRgba));
+  if (read_back == NULL) {
+    fprintf(stderr, "calloc failed\n");
+    return 1;
+  }
+  if (!rastera_read_rgba8_into(rgba_path, read_back, capacity)) {
+    fprintf(stderr, "read_rgba8_into failed: %s\n",
+            rastera_last_error_message());
+    free(read_back);
+    return 1;
+  }
+  printf("rgba[0] = (%u,%u,%u,%u)\n", read_back[0].r, read_back[0].g,
+         read_back[0].b, read_back[0].a);
+  printf("rgba[3] = (%u,%u,%u,%u)\n", read_back[3].r, read_back[3].g,
+         read_back[3].b, read_back[3].a);
+  free(read_back);
 
   return 0;
 }

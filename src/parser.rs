@@ -191,8 +191,7 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
             expected: "value that fits in usize".to_owned(),
             actual: ifd_offset.to_string(),
         })?;
-        let (entries, next_ifd, cursor_after_entries) = read_ifd(&header, bytes, ifd_pos)?;
-        let _ = cursor_after_entries;
+        let (entries, next_ifd) = read_ifd(&header, bytes, ifd_pos)?;
 
         let width = read_scalar_u64(&header, &entries,TAG_IMAGE_WIDTH)?
             .ok_or_else(|| Error::Message("missing ImageWidth".to_owned()))?
@@ -458,7 +457,7 @@ fn read_ifd(
     header: &Header,
     bytes: &[u8],
     offset: usize,
-) -> Result<(BTreeMap<u16, Entry>, u64, usize)> {
+) -> Result<(BTreeMap<u16, Entry>, u64)> {
     let mut entries = BTreeMap::new();
     let (entry_count, mut cursor): (u64, usize) = if header.bigtiff {
         (header.read_u64(bytes, offset)?, offset + 8)
@@ -504,8 +503,7 @@ fn read_ifd(
     } else {
         u64::from(header.read_u32(bytes, cursor)?)
     };
-    let after = if header.bigtiff { cursor + 8 } else { cursor + 4 };
-    Ok((entries, next_ifd, after))
+    Ok((entries, next_ifd))
 }
 
 fn read_scalar_u64(
