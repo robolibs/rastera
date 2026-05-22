@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use datapod::{Geo, Grid, Point, Pose, Quaternion, Vector};
+use datapod::{Geo, Point, Pose, Quaternion};
 
 use crate::color::Rgba8;
 use crate::error::{Error, Result};
@@ -777,33 +777,32 @@ fn decode_grid_data(
     photometric: u16,
     sample_format: SampleFormat,
 ) -> Result<GridData> {
+    let mk_grid = |encoding: datapod::Encoding, data: Vec<u8>| datapod::Grid {
+        rows: height as u32,
+        cols: width as u32,
+        encoding,
+        centered: 1,
+        resolution,
+        pose,
+        data,
+    };
+    fn typed_to_bytes<T: bytemuck::Pod>(values: Vec<T>) -> Vec<u8> {
+        bytemuck::cast_slice(&values).to_vec()
+    }
+
     if samples_per_pixel == 4 && bits_per_sample == 8 && photometric == 2 {
         let pixels: Vec<Rgba8> = bytes
             .chunks_exact(4)
             .map(|c| Rgba8::new(c[0], c[1], c[2], c[3]))
             .collect();
-        return Ok(GridData::Rgba8(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(pixels),
-        }));
+        return Ok(GridData::Rgba8(mk_grid(datapod::Encoding::Rgba8, typed_to_bytes(pixels))));
     }
     if samples_per_pixel == 3 && bits_per_sample == 8 && photometric == 2 {
         let pixels: Vec<Rgba8> = bytes
             .chunks_exact(3)
             .map(|c| Rgba8::new(c[0], c[1], c[2], 255))
             .collect();
-        return Ok(GridData::Rgba8(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(pixels),
-        }));
+        return Ok(GridData::Rgba8(mk_grid(datapod::Encoding::Rgba8, typed_to_bytes(pixels))));
     }
     if samples_per_pixel != 1 {
         return Err(Error::Unsupported {
@@ -815,106 +814,47 @@ fn decode_grid_data(
         .ok_or_else(|| Error::Message("grid size overflow".to_owned()))?;
     let le = header.little_endian;
     let grid = match (bits_per_sample, sample_format) {
-        (8, SampleFormat::UnsignedInt) => GridData::U8(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(bytes.to_vec()),
-        }),
-        (8, SampleFormat::SignedInt) => GridData::I8(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(bytes.iter().map(|b| *b as i8).collect::<Vec<_>>()),
-        }),
-        (16, SampleFormat::UnsignedInt) => GridData::U16(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(read_chunks(bytes, cells, |c| {
-                if le {
-                    u16::from_le_bytes([c[0], c[1]])
-                } else {
-                    u16::from_be_bytes([c[0], c[1]])
-                }
-            })?),
-        }),
-        (16, SampleFormat::SignedInt) => GridData::I16(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(read_chunks(bytes, cells, |c| {
-                if le {
-                    i16::from_le_bytes([c[0], c[1]])
-                } else {
-                    i16::from_be_bytes([c[0], c[1]])
-                }
-            })?),
-        }),
-        (32, SampleFormat::UnsignedInt) => GridData::U32(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(read_chunks(bytes, cells, |c| {
-                if le {
-                    u32::from_le_bytes([c[0], c[1], c[2], c[3]])
-                } else {
-                    u32::from_be_bytes([c[0], c[1], c[2], c[3]])
-                }
-            })?),
-        }),
-        (32, SampleFormat::SignedInt) => GridData::I32(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(read_chunks(bytes, cells, |c| {
-                if le {
-                    i32::from_le_bytes([c[0], c[1], c[2], c[3]])
-                } else {
-                    i32::from_be_bytes([c[0], c[1], c[2], c[3]])
-                }
-            })?),
-        }),
-        (32, SampleFormat::Float) => GridData::F32(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(read_chunks(bytes, cells, |c| {
-                if le {
-                    f32::from_le_bytes([c[0], c[1], c[2], c[3]])
-                } else {
-                    f32::from_be_bytes([c[0], c[1], c[2], c[3]])
-                }
-            })?),
-        }),
-        (64, SampleFormat::Float) => GridData::F64(Grid {
-            rows: height,
-            cols: width,
-            resolution,
-            centered: true,
-            pose,
-            data: Vector::from(read_chunks(bytes, cells, |c| {
-                if le {
-                    f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]])
-                } else {
-                    f64::from_be_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]])
-                }
-            })?),
-        }),
+        (8, SampleFormat::UnsignedInt) => GridData::U8(mk_grid(datapod::Encoding::U8, bytes.to_vec())),
+        (8, SampleFormat::SignedInt) => {
+            let typed: Vec<i8> = bytes.iter().map(|b| *b as i8).collect();
+            GridData::I8(mk_grid(datapod::Encoding::I8, typed_to_bytes(typed)))
+        }
+        (16, SampleFormat::UnsignedInt) => {
+            let typed: Vec<u16> = read_chunks(bytes, cells, |c| {
+                if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }
+            })?;
+            GridData::U16(mk_grid(datapod::Encoding::U16, typed_to_bytes(typed)))
+        }
+        (16, SampleFormat::SignedInt) => {
+            let typed: Vec<i16> = read_chunks(bytes, cells, |c| {
+                if le { i16::from_le_bytes([c[0], c[1]]) } else { i16::from_be_bytes([c[0], c[1]]) }
+            })?;
+            GridData::I16(mk_grid(datapod::Encoding::I16, typed_to_bytes(typed)))
+        }
+        (32, SampleFormat::UnsignedInt) => {
+            let typed: Vec<u32> = read_chunks(bytes, cells, |c| {
+                if le { u32::from_le_bytes([c[0], c[1], c[2], c[3]]) } else { u32::from_be_bytes([c[0], c[1], c[2], c[3]]) }
+            })?;
+            GridData::U32(mk_grid(datapod::Encoding::U32, typed_to_bytes(typed)))
+        }
+        (32, SampleFormat::SignedInt) => {
+            let typed: Vec<i32> = read_chunks(bytes, cells, |c| {
+                if le { i32::from_le_bytes([c[0], c[1], c[2], c[3]]) } else { i32::from_be_bytes([c[0], c[1], c[2], c[3]]) }
+            })?;
+            GridData::I32(mk_grid(datapod::Encoding::I32, typed_to_bytes(typed)))
+        }
+        (32, SampleFormat::Float) => {
+            let typed: Vec<f32> = read_chunks(bytes, cells, |c| {
+                if le { f32::from_le_bytes([c[0], c[1], c[2], c[3]]) } else { f32::from_be_bytes([c[0], c[1], c[2], c[3]]) }
+            })?;
+            GridData::F32(mk_grid(datapod::Encoding::F32, typed_to_bytes(typed)))
+        }
+        (64, SampleFormat::Float) => {
+            let typed: Vec<f64> = read_chunks(bytes, cells, |c| {
+                if le { f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) } else { f64::from_be_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) }
+            })?;
+            GridData::F64(mk_grid(datapod::Encoding::F64, typed_to_bytes(typed)))
+        }
         _ => {
             return Err(Error::Unsupported {
                 feature: format!("BitsPerSample={bits_per_sample} SampleFormat={sample_format:?}"),
@@ -1187,25 +1127,39 @@ fn unescape_description_value(value: &str) -> String {
 mod tests {
     use std::fs;
 
-    use datapod::{Geo, Grid, Point, Pose, Quaternion, Vector};
+    use datapod::{Encoding, Geo, Grid, Point, Pose, Quaternion};
 
     use super::read_raster_collection;
     use crate::{GridData, Layer, RasterCollection, WriteOptions, write_raster_collection};
     use crate::color::Rgba8;
 
+    /// Build a Grid from a typed cell buffer. Casts the typed vec to bytes.
+    fn mk<T: bytemuck::Pod>(
+        rows: u32,
+        cols: u32,
+        encoding: Encoding,
+        resolution: f64,
+        pose: Pose,
+        cells: Vec<T>,
+    ) -> Grid {
+        Grid {
+            rows,
+            cols,
+            encoding,
+            centered: 1,
+            resolution,
+            pose,
+            data: bytemuck::cast_slice(&cells).to_vec(),
+        }
+    }
+
     #[test]
     fn round_trip_single_layer_u8_tiff() {
-        let grid = Grid {
-            rows: 2,
-            cols: 3,
-            resolution: 2.5,
-            centered: true,
-            pose: Pose {
-                point: Point::new(1.0, 2.0, 3.0),
-                rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
-            },
-            data: Vector::from(vec![10u8, 20, 30, 40, 50, 60]),
+        let pose = Pose {
+            point: Point::new(1.0, 2.0, 3.0),
+            rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
         };
+        let grid = mk(2, 3, Encoding::U8, 2.5, pose, vec![10u8, 20, 30, 40, 50, 60]);
         let mut layer = Layer::new(GridData::from(grid));
         layer.datum = Geo::new(47.5, 8.5, 200.0);
         layer.shift = Pose {
@@ -1243,22 +1197,8 @@ mod tests {
 
     #[test]
     fn round_trip_multi_layer_u8_tiff() {
-        let layer1 = Layer::new(GridData::from(Grid {
-            rows: 1,
-            cols: 2,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![1u8, 2]),
-        }));
-        let mut layer2 = Layer::new(GridData::from(Grid {
-            rows: 1,
-            cols: 2,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![3u8, 4]),
-        }));
+        let layer1 = Layer::new(GridData::from(mk(1, 2, Encoding::U8, 1.0, Pose::default(), vec![1u8, 2])));
+        let mut layer2 = Layer::new(GridData::from(mk(1, 2, Encoding::U8, 1.0, Pose::default(), vec![3u8, 4])));
         layer2.set_global_property("name", "second");
         let collection = RasterCollection {
             layers: vec![layer1, layer2],
@@ -1281,14 +1221,7 @@ mod tests {
 
     #[test]
     fn round_trip_i16_and_custom_tags() {
-        let mut layer = Layer::new(GridData::from(Grid {
-            rows: 1,
-            cols: 3,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![-2i16, 0, 17]),
-        }));
+        let mut layer = Layer::new(GridData::from(mk(1, 3, Encoding::I16, 1.0, Pose::default(), vec![-2i16, 0, 17])));
         layer.custom_tags.insert(50001, vec![42, 43]);
         let collection = RasterCollection {
             layers: vec![layer],
@@ -1303,7 +1236,10 @@ mod tests {
         fs::remove_file(&path).ok();
 
         match &parsed.layers[0].grid {
-            GridData::I16(grid) => assert_eq!(grid.data.as_slice(), &[-2, 0, 17]),
+            GridData::I16(grid) => {
+                let typed: &[i16] = bytemuck::cast_slice(&grid.data);
+                assert_eq!(typed, &[-2i16, 0, 17]);
+            }
             _ => panic!("expected i16 grid"),
         }
         assert_eq!(
@@ -1314,14 +1250,7 @@ mod tests {
 
     #[test]
     fn round_trip_gdal_nodata_and_geo_ascii() {
-        let mut layer = Layer::new(GridData::from(Grid {
-            rows: 1,
-            cols: 2,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![1u8, 2]),
-        }));
+        let mut layer = Layer::new(GridData::from(mk(1, 2, Encoding::U8, 1.0, Pose::default(), vec![1u8, 2])));
         layer.datum = Geo::new(47.5, 8.5, 200.0);
         layer.resolution = 1.0;
         layer.no_data_value = Some(-9999.0);
@@ -1354,14 +1283,7 @@ mod tests {
 
     #[test]
     fn emits_real_geotiff_model_tags() {
-        let mut layer = Layer::new(GridData::from(Grid {
-            rows: 4,
-            cols: 4,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![0u8; 16]),
-        }));
+        let mut layer = Layer::new(GridData::from(mk(4, 4, Encoding::U8, 1.0, Pose::default(), vec![0u8; 16])));
         layer.datum = Geo::new(47.5, 8.5, 200.0);
         layer.resolution = 1.0;
 
@@ -1387,14 +1309,7 @@ mod tests {
 
     #[test]
     fn round_trip_f32() {
-        let layer = Layer::new(GridData::from(Grid {
-            rows: 1,
-            cols: 2,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![1.5f32, -2.25]),
-        }));
+        let layer = Layer::new(GridData::from(mk(1, 2, Encoding::F32, 1.0, Pose::default(), vec![1.5f32, -2.25])));
         let collection = RasterCollection {
             layers: vec![layer],
             datum: Geo::default(),
@@ -1409,8 +1324,9 @@ mod tests {
 
         match &parsed.layers[0].grid {
             GridData::F32(grid) => {
-                assert!((grid.data[0] - 1.5).abs() < 1e-6);
-                assert!((grid.data[1] + 2.25).abs() < 1e-6);
+                let typed: &[f32] = bytemuck::cast_slice(&grid.data);
+                assert!((typed[0] - 1.5).abs() < 1e-6);
+                assert!((typed[1] + 2.25).abs() < 1e-6);
             }
             _ => panic!("expected f32 grid"),
         }
@@ -1421,14 +1337,7 @@ mod tests {
         let pixels: Vec<Rgba8> = (0..12)
             .map(|i| Rgba8::new(i as u8, (i * 2) as u8, (i * 3) as u8, 255))
             .collect();
-        let grid = Grid {
-            rows: 3,
-            cols: 4,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(pixels.clone()),
-        };
+        let grid = mk(3, 4, Encoding::Rgba8, 1.0, Pose::default(), pixels.clone());
         let layer = Layer::new(GridData::from(grid));
         let collection = RasterCollection {
             layers: vec![layer],
@@ -1446,7 +1355,8 @@ mod tests {
             GridData::Rgba8(g) => {
                 assert_eq!(g.rows, 3);
                 assert_eq!(g.cols, 4);
-                for (a, b) in g.data.as_slice().iter().zip(pixels.iter()) {
+                let typed: &[Rgba8] = bytemuck::cast_slice(&g.data);
+                for (a, b) in typed.iter().zip(pixels.iter()) {
                     assert_eq!(a.r, b.r);
                     assert_eq!(a.g, b.g);
                     assert_eq!(a.b, b.b);
@@ -1462,14 +1372,7 @@ mod tests {
         let rows = 40;
         let cols = 200;
         let data: Vec<u8> = (0..rows * cols).map(|i| (i % 251) as u8).collect();
-        let grid = Grid {
-            rows,
-            cols,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(data.clone()),
-        };
+        let grid = mk(rows, cols, Encoding::U8, 1.0, Pose::default(), data.clone());
         let layer = Layer::new(GridData::from(grid));
         let collection = RasterCollection {
             layers: vec![layer],
@@ -1496,17 +1399,11 @@ mod tests {
 
     #[test]
     fn round_trip_rotated_grid() {
-        let grid = Grid {
-            rows: 8,
-            cols: 8,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose {
-                point: Point::new(0.0, 0.0, 0.0),
-                rotation: Quaternion::from_euler(datapod::Euler::new(0.0, 0.0, std::f64::consts::FRAC_PI_4)),
-            },
-            data: Vector::from(vec![7u8; 64]),
+        let pose = Pose {
+            point: Point::new(0.0, 0.0, 0.0),
+            rotation: Quaternion::from_euler(datapod::Euler::new(0.0, 0.0, std::f64::consts::FRAC_PI_4)),
         };
+        let grid = mk(8, 8, Encoding::U8, 1.0, pose, vec![7u8; 64]);
         let mut layer = Layer::new(GridData::from(grid));
         layer.datum = Geo::new(52.0, 5.0, 10.0);
         layer.resolution = 1.0;
@@ -1614,8 +1511,9 @@ mod tests {
             GridData::Rgba8(g) => {
                 assert_eq!(g.rows, 2);
                 assert_eq!(g.cols, 2);
-                assert_eq!(g.data[0], Rgba8::new(10, 20, 30, 255));
-                assert_eq!(g.data[3], Rgba8::new(100, 110, 120, 255));
+                let typed: &[Rgba8] = bytemuck::cast_slice(&g.data);
+                assert_eq!(typed[0], Rgba8::new(10, 20, 30, 255));
+                assert_eq!(typed[3], Rgba8::new(100, 110, 120, 255));
             }
             _ => panic!("expected rgba grid"),
         }
@@ -1626,14 +1524,7 @@ mod tests {
         let pixels: Vec<Rgba8> = (0..6)
             .map(|i| Rgba8::new(10 + i as u8, 100 + i as u8, 200 - i as u8, 250 + i as u8))
             .collect();
-        let grid = Grid {
-            rows: 2,
-            cols: 3,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(pixels.clone()),
-        };
+        let grid = mk(2, 3, Encoding::Rgba8, 1.0, Pose::default(), pixels.clone());
         let layer = Layer::new(GridData::from(grid));
         let collection = RasterCollection {
             layers: vec![layer],
@@ -1651,7 +1542,8 @@ mod tests {
         fs::remove_file(&path).ok();
         match &parsed.layers[0].grid {
             GridData::Rgba8(g) => {
-                for (got, exp) in g.data.as_slice().iter().zip(pixels.iter()) {
+                let typed: &[Rgba8] = bytemuck::cast_slice(&g.data);
+                for (got, exp) in typed.iter().zip(pixels.iter()) {
                     assert_eq!(got.r, exp.r);
                     assert_eq!(got.g, exp.g);
                     assert_eq!(got.b, exp.b);
@@ -1664,14 +1556,7 @@ mod tests {
 
     #[test]
     fn round_trip_palette_u8() {
-        let grid = Grid {
-            rows: 2,
-            cols: 2,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![0u8, 1, 2, 3]),
-        };
+        let grid = mk(2, 2, Encoding::U8, 1.0, Pose::default(), vec![0u8, 1, 2, 3]);
         let mut layer = Layer::new(GridData::from(grid));
         let mut palette = vec![(0u16, 0u16, 0u16); 256];
         palette[0] = (0, 0, 0);
@@ -1705,14 +1590,7 @@ mod tests {
 
     #[test]
     fn round_trip_big_endian_writer() {
-        let layer = Layer::new(GridData::from(Grid {
-            rows: 2,
-            cols: 3,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![-4000i16, -1, 0, 1, 2, 30000]),
-        }));
+        let layer = Layer::new(GridData::from(mk(2, 3, Encoding::I16, 1.0, Pose::default(), vec![-4000i16, -1, 0, 1, 2, 30000])));
         let collection = RasterCollection {
             layers: vec![layer],
             datum: Geo::default(),
@@ -1731,21 +1609,17 @@ mod tests {
         let parsed = read_raster_collection(&path).unwrap();
         fs::remove_file(&path).ok();
         match &parsed.layers[0].grid {
-            GridData::I16(g) => assert_eq!(g.data.as_slice(), &[-4000, -1, 0, 1, 2, 30000]),
+            GridData::I16(g) => {
+                let typed: &[i16] = bytemuck::cast_slice(&g.data);
+                assert_eq!(typed, &[-4000i16, -1, 0, 1, 2, 30000]);
+            }
             _ => panic!("expected i16 grid"),
         }
     }
 
     #[test]
     fn round_trip_bigtiff() {
-        let grid = Grid {
-            rows: 2,
-            cols: 2,
-            resolution: 1.0,
-            centered: true,
-            pose: Pose::default(),
-            data: Vector::from(vec![1u8, 2, 3, 4]),
-        };
+        let grid = mk(2, 2, Encoding::U8, 1.0, Pose::default(), vec![1u8, 2, 3, 4]);
         let layer = Layer::new(GridData::from(grid));
         let collection = RasterCollection {
             layers: vec![layer],

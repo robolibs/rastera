@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use datapod::{Geo, Grid, Pose, Vector};
+use datapod::{Encoding, Geo, Grid, Pose};
 
 use crate::color::rgba_to_luma_u8;
 use crate::error::{Error, Result};
-use crate::types::{GridData, Layer, RasterCollection};
+use crate::types::{GridData, Layer, RasterCollection, make_grid};
 use crate::writer::{WriteOptions, write_raster_collection};
 
+/// A u8 grid layer: wraps a single `datapod::Grid` (which owns its data).
 #[derive(Debug, Clone, PartialEq)]
 pub struct GridLayer {
-    pub grid: Grid<u8>,
+    pub grid: Grid,
     pub name: String,
     pub grid_type: String,
     pub properties: HashMap<String, String>,
@@ -19,7 +20,7 @@ pub struct GridLayer {
 
 impl GridLayer {
     pub fn new(
-        grid: Grid<u8>,
+        grid: Grid,
         name: impl Into<String>,
         grid_type: impl Into<String>,
         properties: HashMap<String, String>,
@@ -33,24 +34,50 @@ impl GridLayer {
         }
     }
 
+    pub fn get(&self, row: usize, col: usize) -> u8 {
+        self.grid.data[self.grid.flat_index(row, col)]
+    }
+
+    pub fn set(&mut self, row: usize, col: usize, value: u8) {
+        let idx = self.grid.flat_index(row, col);
+        self.grid.data[idx] = value;
+    }
+
     pub fn from_grid_data(
         grid: &GridData,
         name: impl Into<String>,
         grid_type: impl Into<String>,
         properties: HashMap<String, String>,
     ) -> Self {
-        let grid = match grid {
-            GridData::U8(grid) => grid.clone(),
-            GridData::I8(grid) => convert_grid(grid, |value| value.clamp(0, i8::MAX) as u8),
-            GridData::U16(grid) => convert_grid(grid, |value| value.min(255) as u8),
-            GridData::I16(grid) => convert_grid(grid, |value| value.clamp(0, 255) as u8),
-            GridData::U32(grid) => convert_grid(grid, |value| value.min(255) as u8),
-            GridData::I32(grid) => convert_grid(grid, |value| value.clamp(0, 255) as u8),
-            GridData::F32(grid) => convert_grid(grid, |value| value.clamp(0.0, 255.0) as u8),
-            GridData::F64(grid) => convert_grid(grid, |value| value.clamp(0.0, 255.0) as u8),
-            GridData::Rgba8(grid) => convert_grid(grid, |value| rgba_to_luma_u8(value)),
+        let g = match grid {
+            GridData::U8(g) => g.clone(),
+            GridData::I8(g) => convert_grid_typed::<i8>(g, |v| v.clamp(0, i8::MAX) as u8),
+            GridData::U16(g) => convert_grid_typed::<u16>(g, |v| v.min(255) as u8),
+            GridData::I16(g) => convert_grid_typed::<i16>(g, |v| v.clamp(0, 255) as u8),
+            GridData::U32(g) => convert_grid_typed::<u32>(g, |v| v.min(255) as u8),
+            GridData::I32(g) => convert_grid_typed::<i32>(g, |v| v.clamp(0, 255) as u8),
+            GridData::F32(g) => convert_grid_typed::<f32>(g, |v| v.clamp(0.0, 255.0) as u8),
+            GridData::F64(g) => convert_grid_typed::<f64>(g, |v| v.clamp(0.0, 255.0) as u8),
+            GridData::Rgba8(g) => convert_grid_typed::<crate::color::Rgba8>(g, rgba_to_luma_u8),
         };
-        Self::new(grid, name, grid_type, properties)
+        Self::new(g, name, grid_type, properties)
+    }
+}
+
+fn convert_grid_typed<T>(g: &Grid, map: impl Fn(T) -> u8) -> Grid
+where
+    T: Copy + bytemuck::Pod,
+{
+    let typed: &[T] = bytemuck::cast_slice(&g.data);
+    let bytes: Vec<u8> = typed.iter().map(|v| map(*v)).collect();
+    Grid {
+        rows: g.rows,
+        cols: g.cols,
+        encoding: Encoding::U8,
+        centered: g.centered,
+        resolution: g.resolution,
+        pose: g.pose,
+        data: bytes,
     }
 }
 
@@ -99,7 +126,7 @@ impl Raster {
         };
 
         for grid_layer in &self.grid_layers {
-            let mut layer = Layer::new(GridData::from(grid_layer.grid.clone()));
+            let mut layer = Layer::new(GridData::U8(grid_layer.grid.clone()));
             layer.datum = self.datum;
             layer.shift = self.shift;
             layer.resolution = self.resolution;
@@ -167,14 +194,15 @@ impl Raster {
         if !grid_type.is_empty() {
             properties.insert("type".to_owned(), grid_type.clone());
         }
-        let grid = Grid {
-            rows: height,
-            cols: width,
-            resolution: self.resolution,
-            centered: true,
-            pose: self.shift,
-            data: Vector::from_elem(width * height, 0u8),
-        };
+        let grid = make_grid(
+            height as u32,
+            width as u32,
+            Encoding::U8,
+            self.resolution,
+            true,
+            self.shift,
+            vec![0u8; width * height],
+        );
         self.grid_layers
             .push(GridLayer::new(grid, name, grid_type, properties));
     }
@@ -290,18 +318,6 @@ impl<'a> IntoIterator for &'a Raster {
     }
 }
 
-fn convert_grid<T: Copy>(grid: &Grid<T>, map: impl Fn(T) -> u8) -> Grid<u8> {
-    let data = grid.data.iter().copied().map(map).collect::<Vec<_>>();
-    Grid {
-        rows: grid.rows,
-        cols: grid.cols,
-        resolution: grid.resolution,
-        centered: grid.centered,
-        pose: grid.pose,
-        data: Vector::from(data),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -324,9 +340,9 @@ mod tests {
         raster.set_global_property("mission", "alpha");
 
         {
-            let grid = &mut raster.get_grid_mut(0).unwrap().grid;
-            grid[(0, 0)] = 10;
-            grid[(1, 2)] = 99;
+            let gl = raster.get_grid_mut(0).unwrap();
+            gl.set(0, 0, 10);
+            gl.set(1, 2, 99);
         }
 
         let path = std::env::temp_dir().join("rastera_raster_roundtrip.tif");
@@ -335,7 +351,7 @@ mod tests {
         fs::remove_file(&path).ok();
 
         assert_eq!(loaded.grid_count(), 2);
-        assert_eq!(loaded.get_grid_by_name("terrain").unwrap().grid[(1, 2)], 99);
+        assert_eq!(loaded.get_grid_by_name("terrain").unwrap().get(1, 2), 99);
         assert_eq!(loaded.get_global_property("mission", ""), "alpha");
     }
 }

@@ -791,72 +791,79 @@ fn encode_strip_bytes(
     match grid {
         GridData::U8(g) => {
             if bo.little_endian {
-                let slice = g.data.as_slice();
                 for r in start..end {
-                    out.extend_from_slice(&slice[r * cols..(r + 1) * cols]);
+                    out.extend_from_slice(&g.data[r * cols..(r + 1) * cols]);
                 }
             } else {
                 for r in start..end {
                     for c in 0..cols {
-                        out.push(g[(r, c)]);
+                        out.push(g.data[r * cols + c]);
                     }
                 }
             }
         }
         GridData::I8(g) => {
+            let data: &[i8] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.push(g[(r, c)] as u8);
+                    out.push(data[r * cols + c] as u8);
                 }
             }
         }
         GridData::U16(g) => {
+            let data: &[u16] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.extend_from_slice(&bo.u16(g[(r, c)]));
+                    out.extend_from_slice(&bo.u16(data[r * cols + c]));
                 }
             }
         }
         GridData::I16(g) => {
+            let data: &[i16] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.extend_from_slice(&bo.i16(g[(r, c)]));
+                    out.extend_from_slice(&bo.i16(data[r * cols + c]));
                 }
             }
         }
         GridData::U32(g) => {
+            let data: &[u32] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.extend_from_slice(&bo.u32(g[(r, c)]));
+                    out.extend_from_slice(&bo.u32(data[r * cols + c]));
                 }
             }
         }
         GridData::I32(g) => {
+            let data: &[i32] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.extend_from_slice(&bo.i32(g[(r, c)]));
+                    out.extend_from_slice(&bo.i32(data[r * cols + c]));
                 }
             }
         }
         GridData::F32(g) => {
+            let data: &[f32] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.extend_from_slice(&bo.f32(g[(r, c)]));
+                    out.extend_from_slice(&bo.f32(data[r * cols + c]));
                 }
             }
         }
         GridData::F64(g) => {
+            let data: &[f64] = bytemuck::cast_slice(&g.data);
             for r in start..end {
                 for c in 0..cols {
-                    out.extend_from_slice(&bo.f64(g[(r, c)]));
+                    out.extend_from_slice(&bo.f64(data[r * cols + c]));
                 }
             }
         }
         GridData::Rgba8(g) => {
+            let data: &[crate::color::Rgba8] = bytemuck::cast_slice(&g.data);
             if planar_config == 2 {
                 for r in start..end {
                     for c in 0..cols {
-                        let px = g[(r, c)];
+                        let px = data[r * cols + c];
                         let byte = match plane {
                             0 => px.r,
                             1 => px.g,
@@ -870,7 +877,7 @@ fn encode_strip_bytes(
             } else {
                 for r in start..end {
                     for c in 0..cols {
-                        let px = g[(r, c)];
+                        let px = data[r * cols + c];
                         out.push(px.r);
                         out.push(px.g);
                         out.push(px.b);
@@ -1152,19 +1159,20 @@ fn escape_description_value(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use datapod::{Geo, Grid, Pose, Quaternion, Vector};
+    use datapod::{Encoding, Geo, Grid, Pose, Quaternion};
 
     use super::{WriteOptions, to_tiff_bytes};
     use crate::{GridData, Layer, RasterCollection};
 
-    fn make_grid(values: &[u8], rows: usize, cols: usize) -> Grid<u8> {
+    fn make_grid(values: &[u8], rows: u32, cols: u32) -> Grid {
         Grid {
             rows,
             cols,
+            encoding: Encoding::U8,
+            centered: 1,
             resolution: 1.5,
-            centered: true,
             pose: Pose::default(),
-            data: Vector::from(values.to_vec()),
+            data: values.to_vec(),
         }
     }
 

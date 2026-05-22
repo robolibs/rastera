@@ -469,8 +469,8 @@ pub extern "C" fn rastera_raster_grid_shape(
                 return fail("null output pointer");
             }
             unsafe {
-                ptr::write(out_rows, grid.grid.rows);
-                ptr::write(out_cols, grid.grid.cols);
+                ptr::write(out_rows, grid.grid.rows as usize);
+                ptr::write(out_cols, grid.grid.cols as usize);
             }
             ok()
         }
@@ -488,10 +488,10 @@ pub extern "C" fn rastera_raster_grid_get_u8(
 ) -> bool {
     match raster_from_ptr(handle).and_then(|h| h.inner.get_grid(index)) {
         Ok(grid) => {
-            if row >= grid.grid.rows || col >= grid.grid.cols {
+            if row >= grid.grid.rows as usize || col >= grid.grid.cols as usize {
                 return fail("grid index out of bounds");
             }
-            write_out(out, grid.grid[(row, col)])
+            write_out(out, grid.get(row, col))
         }
         Err(err) => fail(err.to_string()),
     }
@@ -507,10 +507,10 @@ pub extern "C" fn rastera_raster_grid_set_u8(
 ) -> bool {
     match raster_from_ptr_mut(handle).and_then(|h| h.inner.get_grid_mut(index)) {
         Ok(grid) => {
-            if row >= grid.grid.rows || col >= grid.grid.cols {
+            if row >= grid.grid.rows as usize || col >= grid.grid.cols as usize {
                 return fail("grid index out of bounds");
             }
-            grid.grid[(row, col)] = value;
+            grid.set(row, col, value);
             ok()
         }
         Err(err) => fail(err.to_string()),
@@ -525,10 +525,8 @@ pub extern "C" fn rastera_raster_grid_fill_u8(
 ) -> bool {
     match raster_from_ptr_mut(handle).and_then(|h| h.inner.get_grid_mut(index)) {
         Ok(grid) => {
-            for r in 0..grid.grid.rows {
-                for c in 0..grid.grid.cols {
-                    grid.grid[(r, c)] = value;
-                }
+            for v in &mut grid.grid.data {
+                *v = value;
             }
             ok()
         }
@@ -579,19 +577,21 @@ pub extern "C" fn rastera_write_rgba8(
     };
     let cells = rows * cols;
     let slice = unsafe { std::slice::from_raw_parts(pixels, cells) };
-    let data: Vec<Rgba8> = slice
+    let pixels: Vec<Rgba8> = slice
         .iter()
         .map(|p| Rgba8::new(p.r, p.g, p.b, p.a))
         .collect();
+    let bytes: Vec<u8> = bytemuck::cast_slice(&pixels).to_vec();
     let grid = datapod::Grid {
-        rows,
-        cols,
+        rows: rows as u32,
+        cols: cols as u32,
+        encoding: datapod::Encoding::Rgba8,
+        centered: 1,
         resolution,
-        centered: true,
         pose: Pose::default(),
-        data: datapod::Vector::from(data),
+        data: bytes,
     };
-    let mut layer = crate::Layer::new(GridData::from(grid));
+    let mut layer = crate::Layer::new(GridData::Rgba8(grid));
     layer.datum = datum.into();
     layer.resolution = resolution;
     let collection = RasterCollection {
@@ -660,14 +660,15 @@ pub extern "C" fn rastera_read_rgba8_into(
         GridData::Rgba8(g) => g,
         _ => return fail("first layer is not an RGBA grid"),
     };
-    let needed = grid.rows * grid.cols;
+    let needed = (grid.rows as usize) * (grid.cols as usize);
     if capacity < needed {
         return fail(format!(
             "buffer capacity {capacity} is smaller than required {needed}"
         ));
     }
+    let pixels: &[Rgba8] = bytemuck::cast_slice(&grid.data);
     let slice = unsafe { std::slice::from_raw_parts_mut(out_pixels, needed) };
-    for (dst, src) in slice.iter_mut().zip(grid.data.as_slice().iter()) {
+    for (dst, src) in slice.iter_mut().zip(pixels.iter()) {
         *dst = RasteraRgba {
             r: src.r,
             g: src.g,

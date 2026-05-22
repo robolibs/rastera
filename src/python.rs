@@ -257,7 +257,7 @@ impl PyRaster {
             .inner
             .get_grid(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
-        Ok(grid.grid.data.as_slice().to_vec().into_pyobject(py)?.into_any().unbind())
+        Ok(grid.grid.grid.data.as_slice().to_vec().into_pyobject(py)?.into_any().unbind())
     }
 
     fn find_grid(&self, name: &str) -> PyResult<usize> {
@@ -303,13 +303,13 @@ fn write_rgba8(
         .into_iter()
         .map(|(r, g, b, a)| Rgba8::new(r, g, b, a))
         .collect();
-    let grid = datapod::Grid {
+    let grid = crate::local_geom::Grid {
         rows,
         cols,
         resolution,
         centered: true,
         pose: Pose::default(),
-        data: datapod::Vector::from(data),
+        data: Vec::from(data),
     };
     let mut layer = Layer::new(GridData::from(grid));
     layer.datum = geo_from_tuple(datum);
