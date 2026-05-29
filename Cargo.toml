@@ -28,8 +28,8 @@ python-extension = ["python", "pyo3/extension-module"]
 
 [dependencies]
 bytemuck = { version = "1", features = ["derive"] }
-concord = { git = "https://codeberg.org/robolibs/concord.git", rev = "34062145237c2f2e19cb62e50eba127b4bc848b5" }
-datapod = { git = "https://codeberg.org/robolibs/datapod.git", rev = "4547e328826fb4fd788b7acac29c2f70efc62746" }
+concord = { git = "https://codeberg.org/robolibs/concord.git", tag = "0.1.0" }
+datapod = { git = "https://codeberg.org/robolibs/datapod.git", tag = "0.2.0" }
 pyo3 = { version = "0.23", optional = true }
 rgb = { version = "0.8", features = ["bytemuck"] }
 thiserror = "2.0"

@@ -7,7 +7,7 @@
 
 use std::env;
 
-use datapod::{Geo, Grid, Pose, Vector};
+use datapod::{Encoding, Geo, Grid, Pose};
 use rastera::{
     GridData, Layer, RasterCollection, WriteOptions, read_raster_collection,
     write_raster_collection,
@@ -19,15 +19,11 @@ fn main() -> rastera::Result<()> {
     let grid = Grid {
         rows,
         cols,
+        encoding: Encoding::U8,
         resolution: 1.0,
-        centered: true,
+        centered: 1,
         pose: Pose::default(),
-        data: Vector::from(vec![
-            0u8, 1, 2, 3,
-            1, 2, 3, 0,
-            2, 3, 0, 1,
-            3, 0, 1, 2,
-        ]),
+        data: vec![0u8, 1, 2, 3, 1, 2, 3, 0, 2, 3, 0, 1, 3, 0, 1, 2],
     };
 
     let mut palette = vec![(0u16, 0u16, 0u16); 256];
@@ -56,8 +52,10 @@ fn main() -> rastera::Result<()> {
     match &layer.grid {
         GridData::U8(g) => {
             println!("indices:");
-            for r in 0..g.rows {
-                let row_indices: Vec<_> = (0..g.cols).map(|c| g[(r, c)]).collect();
+            for r in 0..g.rows as usize {
+                let row_indices: Vec<_> = (0..g.cols as usize)
+                    .map(|c| g.data[g.flat_index(r, c)])
+                    .collect();
                 println!("  {row_indices:?}");
             }
         }

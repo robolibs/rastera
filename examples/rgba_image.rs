@@ -7,9 +7,12 @@
 
 use std::env;
 
-use datapod::{Geo, Grid, Pose, Vector};
+use datapod::{Encoding, Geo, Grid, Pose};
 use rastera::color::Rgba8;
-use rastera::{GridData, Layer, RasterCollection, WriteOptions, write_raster_collection, read_raster_collection};
+use rastera::{
+    GridData, Layer, RasterCollection, WriteOptions, read_raster_collection,
+    write_raster_collection,
+};
 
 fn main() -> rastera::Result<()> {
     let rows = 64usize;
@@ -30,12 +33,13 @@ fn main() -> rastera::Result<()> {
     }
 
     let grid = Grid {
-        rows,
-        cols,
+        rows: rows as u32,
+        cols: cols as u32,
+        encoding: Encoding::Rgba8,
         resolution: 0.5,
-        centered: true,
+        centered: 1,
         pose: Pose::default(),
-        data: Vector::from(data),
+        data: bytemuck::cast_slice(&data).to_vec(),
     };
     let mut layer = Layer::new(GridData::from(grid));
     layer.datum = Geo::new(52.0, 5.0, 0.0);
@@ -55,11 +59,15 @@ fn main() -> rastera::Result<()> {
     let parsed = read_raster_collection(&path)?;
     match &parsed.layers[0].grid {
         GridData::Rgba8(g) => {
+            let pixels: &[Rgba8] = bytemuck::cast_slice(&g.data);
             println!("read {} x {} RGBA grid", g.rows, g.cols);
-            println!("top-left    px = {:?}", g[(0, 0)]);
-            println!("top-right   px = {:?}", g[(0, cols - 1)]);
-            println!("bottom-left px = {:?}", g[(rows - 1, 0)]);
-            println!("bottom-right px = {:?}", g[(rows - 1, cols - 1)]);
+            println!("top-left    px = {:?}", pixels[g.flat_index(0, 0)]);
+            println!("top-right   px = {:?}", pixels[g.flat_index(0, cols - 1)]);
+            println!("bottom-left px = {:?}", pixels[g.flat_index(rows - 1, 0)]);
+            println!(
+                "bottom-right px = {:?}",
+                pixels[g.flat_index(rows - 1, cols - 1)]
+            );
         }
         _ => unreachable!("written as RGBA"),
     }

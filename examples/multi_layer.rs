@@ -26,10 +26,10 @@ fn main() -> rastera::Result<()> {
     raster.set_global_property("field", "F42");
 
     for (idx, base) in [10u8, 50u8, 200u8].iter().enumerate() {
-        let grid = &mut raster.get_grid_mut(idx).unwrap().grid;
-        for r in 0..grid.rows {
-            for c in 0..grid.cols {
-                grid[(r, c)] = base.wrapping_add(((r + c) as u8).wrapping_mul(3));
+        let layer = raster.get_grid_mut(idx).unwrap();
+        for r in 0..layer.grid.rows as usize {
+            for c in 0..layer.grid.cols as usize {
+                layer.set(r, c, base.wrapping_add(((r + c) as u8).wrapping_mul(3)));
             }
         }
     }
@@ -41,14 +41,15 @@ fn main() -> rastera::Result<()> {
     let loaded = Raster::from_file(&path)?;
     println!("grid_count = {}", loaded.grid_count());
     for name in loaded.get_grid_names() {
-        let grid = loaded.get_grid_by_name(&name)?.grid.clone();
+        let layer = loaded.get_grid_by_name(&name)?;
+        let grid = &layer.grid;
         println!(
             "  {:<9} {}x{} first={:3} last={:3}",
             name,
             grid.rows,
             grid.cols,
-            grid[(0, 0)],
-            grid[(grid.rows - 1, grid.cols - 1)]
+            layer.get(0, 0),
+            layer.get(grid.rows as usize - 1, grid.cols as usize - 1)
         );
     }
     println!(
