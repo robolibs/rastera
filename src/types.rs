@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use datapod::{Encoding, Geo, Grid, Point, Pose};
 
-use crate::color::Rgba8;
 use crate::tags::{GLOBAL_PROPERTIES_BASE_TAG, validate_custom_tag};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,9 +101,7 @@ impl GridData {
 
     pub fn sample_format(&self) -> SampleFormat {
         match self {
-            Self::U8(_) | Self::U16(_) | Self::U32(_) | Self::Rgba8(_) => {
-                SampleFormat::UnsignedInt
-            }
+            Self::U8(_) | Self::U16(_) | Self::U32(_) | Self::Rgba8(_) => SampleFormat::UnsignedInt,
             Self::I8(_) | Self::I16(_) | Self::I32(_) => SampleFormat::SignedInt,
             Self::F32(_) | Self::F64(_) => SampleFormat::Float,
         }

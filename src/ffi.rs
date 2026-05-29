@@ -547,7 +547,9 @@ pub extern "C" fn rastera_raster_grid_find_by_name(
                 return Ok(i);
             }
         }
-        Err(crate::Error::Message(format!("grid named '{name}' not found")))
+        Err(crate::Error::Message(format!(
+            "grid named '{name}' not found"
+        )))
     }) {
         Ok(index) => write_out(out_index, index),
         Err(err) => fail(err.to_string()),
@@ -678,4 +680,3 @@ pub extern "C" fn rastera_read_rgba8_into(
     }
     ok()
 }
-

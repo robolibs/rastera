@@ -23,10 +23,10 @@ fn main() -> rastera::Result<()> {
     raster.set_global_property("mission", "smoke");
 
     {
-        let grid = &mut raster.get_grid_mut(0).unwrap().grid;
-        for r in 0..grid.rows {
-            for c in 0..grid.cols {
-                grid[(r, c)] = ((r + c) * 8) as u8;
+        let layer = raster.get_grid_mut(0).unwrap();
+        for r in 0..layer.grid.rows as usize {
+            for c in 0..layer.grid.cols as usize {
+                layer.set(r, c, ((r + c) * 8) as u8);
             }
         }
     }
@@ -41,10 +41,10 @@ fn main() -> rastera::Result<()> {
     println!("shape      = {} x {}", grid.rows, grid.cols);
     println!(
         "diagonal   = [{}, {}, {}, {}, ...]",
-        grid[(0, 0)],
-        grid[(1, 1)],
-        grid[(2, 2)],
-        grid[(3, 3)]
+        loaded.get_grid_by_name("terrain").unwrap().get(0, 0),
+        loaded.get_grid_by_name("terrain").unwrap().get(1, 1),
+        loaded.get_grid_by_name("terrain").unwrap().get(2, 2),
+        loaded.get_grid_by_name("terrain").unwrap().get(3, 3)
     );
     println!(
         "mission    = {}",

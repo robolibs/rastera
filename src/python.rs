@@ -33,10 +33,7 @@ fn geo_to_tuple(value: Geo) -> (f64, f64, f64) {
     (value.latitude, value.longitude, value.altitude)
 }
 
-fn pose_from_tuple(
-    point: (f64, f64, f64),
-    rotation: (f64, f64, f64, f64),
-) -> Pose {
+fn pose_from_tuple(point: (f64, f64, f64), rotation: (f64, f64, f64, f64)) -> Pose {
     Pose {
         point: Point::new(point.0, point.1, point.2),
         rotation: Quaternion::new(rotation.0, rotation.1, rotation.2, rotation.3),
@@ -76,7 +73,11 @@ impl PyRaster {
     ) -> Self {
         let (point, quat) = shift;
         Self {
-            inner: Raster::new(geo_from_tuple(datum), pose_from_tuple(point, quat), resolution),
+            inner: Raster::new(
+                geo_from_tuple(datum),
+                pose_from_tuple(point, quat),
+                resolution,
+            ),
         }
     }
 
@@ -105,10 +106,7 @@ impl PyRaster {
         pose_to_tuple(self.inner.shift())
     }
 
-    fn set_shift(
-        &mut self,
-        shift: ((f64, f64, f64), (f64, f64, f64, f64)),
-    ) {
+    fn set_shift(&mut self, shift: ((f64, f64, f64), (f64, f64, f64, f64))) {
         self.inner.set_shift(pose_from_tuple(shift.0, shift.1));
     }
 
@@ -167,7 +165,8 @@ impl PyRaster {
 
     #[pyo3(signature = (width, height, name=None))]
     fn add_terrain_grid(&mut self, width: usize, height: usize, name: Option<&str>) {
-        self.inner.add_terrain_grid(width, height, name.unwrap_or("terrain"));
+        self.inner
+            .add_terrain_grid(width, height, name.unwrap_or("terrain"));
     }
 
     #[pyo3(signature = (width, height, name=None))]
@@ -221,13 +220,7 @@ impl PyRaster {
         Ok(grid.grid[(row, col)])
     }
 
-    fn grid_set(
-        &mut self,
-        index: usize,
-        row: usize,
-        col: usize,
-        value: u8,
-    ) -> PyResult<()> {
+    fn grid_set(&mut self, index: usize, row: usize, col: usize, value: u8) -> PyResult<()> {
         let grid = self
             .inner
             .get_grid_mut(index)
@@ -257,7 +250,15 @@ impl PyRaster {
             .inner
             .get_grid(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
-        Ok(grid.grid.grid.data.as_slice().to_vec().into_pyobject(py)?.into_any().unbind())
+        Ok(grid
+            .grid
+            .grid
+            .data
+            .as_slice()
+            .to_vec()
+            .into_pyobject(py)?
+            .into_any()
+            .unbind())
     }
 
     fn find_grid(&self, name: &str) -> PyResult<usize> {
@@ -333,11 +334,14 @@ fn read_rgba8<'py>(py: Python<'py>, path: &str) -> PyResult<Bound<'py, PyDict>> 
         .ok_or_else(|| PyRuntimeError::new_err("no layers in file"))?;
     let (rows, cols) = layer.grid.dimensions();
     let pixels: Vec<(u8, u8, u8, u8)> = match &layer.grid {
-        GridData::Rgba8(g) => g.data.as_slice().iter().map(|p| (p.r, p.g, p.b, p.a)).collect(),
+        GridData::Rgba8(g) => g
+            .data
+            .as_slice()
+            .iter()
+            .map(|p| (p.r, p.g, p.b, p.a))
+            .collect(),
         _ => {
-            return Err(PyRuntimeError::new_err(
-                "first layer is not an RGBA grid",
-            ));
+            return Err(PyRuntimeError::new_err("first layer is not an RGBA grid"));
         }
     };
     let out = PyDict::new(py);

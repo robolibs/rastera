@@ -193,10 +193,10 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
         })?;
         let (entries, next_ifd) = read_ifd(&header, bytes, ifd_pos)?;
 
-        let width = read_scalar_u64(&header, &entries,TAG_IMAGE_WIDTH)?
+        let width = read_scalar_u64(&header, &entries, TAG_IMAGE_WIDTH)?
             .ok_or_else(|| Error::Message("missing ImageWidth".to_owned()))?
             as usize;
-        let height = read_scalar_u64(&header, &entries,TAG_IMAGE_LENGTH)?
+        let height = read_scalar_u64(&header, &entries, TAG_IMAGE_LENGTH)?
             .ok_or_else(|| Error::Message("missing ImageLength".to_owned()))?
             as usize;
         if width == 0 || height == 0 {
@@ -207,16 +207,19 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
             });
         }
 
-        let bits_per_sample = read_scalar_u64(&header, &entries,TAG_BITS_PER_SAMPLE)?.unwrap_or(8) as u16;
-        let compression = read_scalar_u64(&header, &entries,TAG_COMPRESSION)?.unwrap_or(1) as u16;
+        let bits_per_sample =
+            read_scalar_u64(&header, &entries, TAG_BITS_PER_SAMPLE)?.unwrap_or(8) as u16;
+        let compression = read_scalar_u64(&header, &entries, TAG_COMPRESSION)?.unwrap_or(1) as u16;
         if compression != 1 {
             return Err(Error::Unsupported {
                 feature: format!("Compression={compression}"),
             });
         }
-        let samples_per_pixel = read_scalar_u64(&header, &entries,TAG_SAMPLES_PER_PIXEL)?.unwrap_or(1) as u16;
-        let photometric = read_scalar_u64(&header, &entries,TAG_PHOTOMETRIC)?.unwrap_or(1) as u16;
-        let sample_format_raw = read_scalar_u64(&header, &entries,TAG_SAMPLE_FORMAT)?.unwrap_or(1) as u16;
+        let samples_per_pixel =
+            read_scalar_u64(&header, &entries, TAG_SAMPLES_PER_PIXEL)?.unwrap_or(1) as u16;
+        let photometric = read_scalar_u64(&header, &entries, TAG_PHOTOMETRIC)?.unwrap_or(1) as u16;
+        let sample_format_raw =
+            read_scalar_u64(&header, &entries, TAG_SAMPLE_FORMAT)?.unwrap_or(1) as u16;
         let sample_format = match sample_format_raw {
             1 => SampleFormat::UnsignedInt,
             2 => SampleFormat::SignedInt,
@@ -228,7 +231,8 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
                 });
             }
         };
-        let planar_config = read_scalar_u64(&header, &entries,TAG_PLANAR_CONFIG)?.unwrap_or(1) as u16;
+        let planar_config =
+            read_scalar_u64(&header, &entries, TAG_PLANAR_CONFIG)?.unwrap_or(1) as u16;
         if planar_config != 1 && planar_config != 2 {
             return Err(Error::Unsupported {
                 feature: format!("PlanarConfiguration={planar_config}"),
@@ -237,8 +241,9 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
 
         let strip_offsets = read_long_array(&header, &entries, bytes, TAG_STRIP_OFFSETS)?
             .ok_or_else(|| Error::Message("missing StripOffsets".to_owned()))?;
-        let strip_byte_counts = read_long_array(&header, &entries, bytes, TAG_STRIP_BYTE_COUNTS)?
-            .ok_or_else(|| Error::Message("missing StripByteCounts".to_owned()))?;
+        let strip_byte_counts =
+            read_long_array(&header, &entries, bytes, TAG_STRIP_BYTE_COUNTS)?
+                .ok_or_else(|| Error::Message("missing StripByteCounts".to_owned()))?;
         if strip_offsets.len() != strip_byte_counts.len() {
             return Err(Error::Validation {
                 field: "strip arrays",
@@ -287,9 +292,7 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
             let pixels = width * height;
             let plane_bytes = pixels * bytes_per_sample;
             if expected_bytes != plane_bytes * spp {
-                return Err(Error::Message(
-                    "planar layout size mismatch".to_owned(),
-                ));
+                return Err(Error::Message("planar layout size mismatch".to_owned()));
             }
             let mut interleaved = vec![0u8; expected_bytes];
             for pixel in 0..pixels {
@@ -303,8 +306,8 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
             pixel_bytes = interleaved;
         }
 
-        let image_description = read_ascii_tag(&header, &entries, bytes, TAG_IMAGE_DESCRIPTION)?
-            .unwrap_or_default();
+        let image_description =
+            read_ascii_tag(&header, &entries, bytes, TAG_IMAGE_DESCRIPTION)?.unwrap_or_default();
         let metadata = ParsedMetadata::from_description(&image_description);
         let mut resolution = metadata.layer_resolution.unwrap_or(1.0);
         let mut shift = Pose {
@@ -327,7 +330,9 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
         );
 
         if metadata.layer_resolution.is_none() || metadata.shift_x.is_none() {
-            if let Some(transform) = read_doubles(&header, &entries, bytes, TAG_MODEL_TRANSFORMATION)? {
+            if let Some(transform) =
+                read_doubles(&header, &entries, bytes, TAG_MODEL_TRANSFORMATION)?
+            {
                 if transform.len() >= 16 {
                     let a = transform[0];
                     let e = transform[4];
@@ -336,7 +341,9 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
                     let scale_x_deg = (a * a + e * e).sqrt();
                     resolution = deg_to_meters(&layer_datum, scale_x_deg);
                 }
-            } else if let Some(scales) = read_doubles(&header, &entries, bytes, TAG_MODEL_PIXEL_SCALE)? {
+            } else if let Some(scales) =
+                read_doubles(&header, &entries, bytes, TAG_MODEL_PIXEL_SCALE)?
+            {
                 if !scales.is_empty() {
                     resolution = deg_to_meters(&layer_datum, scales[0]);
                 }
@@ -345,9 +352,15 @@ fn parse_raster_collection(bytes: &[u8]) -> Result<RasterCollection> {
 
         if layers.is_empty() {
             collection_datum = Geo::new(
-                metadata.collection_datum_lat.unwrap_or(layer_datum.latitude),
-                metadata.collection_datum_lon.unwrap_or(layer_datum.longitude),
-                metadata.collection_datum_alt.unwrap_or(layer_datum.altitude),
+                metadata
+                    .collection_datum_lat
+                    .unwrap_or(layer_datum.latitude),
+                metadata
+                    .collection_datum_lon
+                    .unwrap_or(layer_datum.longitude),
+                metadata
+                    .collection_datum_alt
+                    .unwrap_or(layer_datum.altitude),
             );
             collection_shift = shift;
             collection_resolution = metadata.collection_resolution.unwrap_or(resolution);
@@ -453,11 +466,7 @@ fn deg_to_meters(datum: &Geo, degrees: f64) -> f64 {
     east_enu.east() - center_enu.east()
 }
 
-fn read_ifd(
-    header: &Header,
-    bytes: &[u8],
-    offset: usize,
-) -> Result<(BTreeMap<u16, Entry>, u64)> {
+fn read_ifd(header: &Header, bytes: &[u8], offset: usize) -> Result<(BTreeMap<u16, Entry>, u64)> {
     let mut entries = BTreeMap::new();
     let (entry_count, mut cursor): (u64, usize) = if header.bigtiff {
         (header.read_u64(bytes, offset)?, offset + 8)
@@ -707,7 +716,9 @@ fn read_long_values_typed(header: &Header, entry: &Entry, bytes: &[u8]) -> Resul
         actual: entry.count.to_string(),
     })?;
     if count * 4 <= entry.inline_capacity {
-        return Ok((0..count).map(|i| entry.read_inline_u32(header, i)).collect());
+        return Ok((0..count)
+            .map(|i| entry.read_inline_u32(header, i))
+            .collect());
     }
     let offset = usize::try_from(entry.value_or_offset).map_err(|_| Error::Validation {
         field: "LONG array offset",
@@ -739,7 +750,9 @@ fn read_short_values_typed(header: &Header, entry: &Entry, bytes: &[u8]) -> Resu
         actual: entry.count.to_string(),
     })?;
     if count * 2 <= entry.inline_capacity {
-        return Ok((0..count).map(|i| entry.read_inline_u16(header, i)).collect());
+        return Ok((0..count)
+            .map(|i| entry.read_inline_u16(header, i))
+            .collect());
     }
     let offset = usize::try_from(entry.value_or_offset).map_err(|_| Error::Validation {
         field: "SHORT array offset",
@@ -795,14 +808,20 @@ fn decode_grid_data(
             .chunks_exact(4)
             .map(|c| Rgba8::new(c[0], c[1], c[2], c[3]))
             .collect();
-        return Ok(GridData::Rgba8(mk_grid(datapod::Encoding::Rgba8, typed_to_bytes(pixels))));
+        return Ok(GridData::Rgba8(mk_grid(
+            datapod::Encoding::Rgba8,
+            typed_to_bytes(pixels),
+        )));
     }
     if samples_per_pixel == 3 && bits_per_sample == 8 && photometric == 2 {
         let pixels: Vec<Rgba8> = bytes
             .chunks_exact(3)
             .map(|c| Rgba8::new(c[0], c[1], c[2], 255))
             .collect();
-        return Ok(GridData::Rgba8(mk_grid(datapod::Encoding::Rgba8, typed_to_bytes(pixels))));
+        return Ok(GridData::Rgba8(mk_grid(
+            datapod::Encoding::Rgba8,
+            typed_to_bytes(pixels),
+        )));
     }
     if samples_per_pixel != 1 {
         return Err(Error::Unsupported {
@@ -814,44 +833,70 @@ fn decode_grid_data(
         .ok_or_else(|| Error::Message("grid size overflow".to_owned()))?;
     let le = header.little_endian;
     let grid = match (bits_per_sample, sample_format) {
-        (8, SampleFormat::UnsignedInt) => GridData::U8(mk_grid(datapod::Encoding::U8, bytes.to_vec())),
+        (8, SampleFormat::UnsignedInt) => {
+            GridData::U8(mk_grid(datapod::Encoding::U8, bytes.to_vec()))
+        }
         (8, SampleFormat::SignedInt) => {
             let typed: Vec<i8> = bytes.iter().map(|b| *b as i8).collect();
             GridData::I8(mk_grid(datapod::Encoding::I8, typed_to_bytes(typed)))
         }
         (16, SampleFormat::UnsignedInt) => {
             let typed: Vec<u16> = read_chunks(bytes, cells, |c| {
-                if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }
+                if le {
+                    u16::from_le_bytes([c[0], c[1]])
+                } else {
+                    u16::from_be_bytes([c[0], c[1]])
+                }
             })?;
             GridData::U16(mk_grid(datapod::Encoding::U16, typed_to_bytes(typed)))
         }
         (16, SampleFormat::SignedInt) => {
             let typed: Vec<i16> = read_chunks(bytes, cells, |c| {
-                if le { i16::from_le_bytes([c[0], c[1]]) } else { i16::from_be_bytes([c[0], c[1]]) }
+                if le {
+                    i16::from_le_bytes([c[0], c[1]])
+                } else {
+                    i16::from_be_bytes([c[0], c[1]])
+                }
             })?;
             GridData::I16(mk_grid(datapod::Encoding::I16, typed_to_bytes(typed)))
         }
         (32, SampleFormat::UnsignedInt) => {
             let typed: Vec<u32> = read_chunks(bytes, cells, |c| {
-                if le { u32::from_le_bytes([c[0], c[1], c[2], c[3]]) } else { u32::from_be_bytes([c[0], c[1], c[2], c[3]]) }
+                if le {
+                    u32::from_le_bytes([c[0], c[1], c[2], c[3]])
+                } else {
+                    u32::from_be_bytes([c[0], c[1], c[2], c[3]])
+                }
             })?;
             GridData::U32(mk_grid(datapod::Encoding::U32, typed_to_bytes(typed)))
         }
         (32, SampleFormat::SignedInt) => {
             let typed: Vec<i32> = read_chunks(bytes, cells, |c| {
-                if le { i32::from_le_bytes([c[0], c[1], c[2], c[3]]) } else { i32::from_be_bytes([c[0], c[1], c[2], c[3]]) }
+                if le {
+                    i32::from_le_bytes([c[0], c[1], c[2], c[3]])
+                } else {
+                    i32::from_be_bytes([c[0], c[1], c[2], c[3]])
+                }
             })?;
             GridData::I32(mk_grid(datapod::Encoding::I32, typed_to_bytes(typed)))
         }
         (32, SampleFormat::Float) => {
             let typed: Vec<f32> = read_chunks(bytes, cells, |c| {
-                if le { f32::from_le_bytes([c[0], c[1], c[2], c[3]]) } else { f32::from_be_bytes([c[0], c[1], c[2], c[3]]) }
+                if le {
+                    f32::from_le_bytes([c[0], c[1], c[2], c[3]])
+                } else {
+                    f32::from_be_bytes([c[0], c[1], c[2], c[3]])
+                }
             })?;
             GridData::F32(mk_grid(datapod::Encoding::F32, typed_to_bytes(typed)))
         }
         (64, SampleFormat::Float) => {
             let typed: Vec<f64> = read_chunks(bytes, cells, |c| {
-                if le { f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) } else { f64::from_be_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]) }
+                if le {
+                    f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]])
+                } else {
+                    f64::from_be_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]])
+                }
             })?;
             GridData::F64(mk_grid(datapod::Encoding::F64, typed_to_bytes(typed)))
         }
@@ -1130,8 +1175,8 @@ mod tests {
     use datapod::{Encoding, Geo, Grid, Point, Pose, Quaternion};
 
     use super::read_raster_collection;
-    use crate::{GridData, Layer, RasterCollection, WriteOptions, write_raster_collection};
     use crate::color::Rgba8;
+    use crate::{GridData, Layer, RasterCollection, WriteOptions, write_raster_collection};
 
     /// Build a Grid from a typed cell buffer. Casts the typed vec to bytes.
     fn mk<T: bytemuck::Pod>(
@@ -1159,7 +1204,14 @@ mod tests {
             point: Point::new(1.0, 2.0, 3.0),
             rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
         };
-        let grid = mk(2, 3, Encoding::U8, 2.5, pose, vec![10u8, 20, 30, 40, 50, 60]);
+        let grid = mk(
+            2,
+            3,
+            Encoding::U8,
+            2.5,
+            pose,
+            vec![10u8, 20, 30, 40, 50, 60],
+        );
         let mut layer = Layer::new(GridData::from(grid));
         layer.datum = Geo::new(47.5, 8.5, 200.0);
         layer.shift = Pose {
@@ -1197,8 +1249,22 @@ mod tests {
 
     #[test]
     fn round_trip_multi_layer_u8_tiff() {
-        let layer1 = Layer::new(GridData::from(mk(1, 2, Encoding::U8, 1.0, Pose::default(), vec![1u8, 2])));
-        let mut layer2 = Layer::new(GridData::from(mk(1, 2, Encoding::U8, 1.0, Pose::default(), vec![3u8, 4])));
+        let layer1 = Layer::new(GridData::from(mk(
+            1,
+            2,
+            Encoding::U8,
+            1.0,
+            Pose::default(),
+            vec![1u8, 2],
+        )));
+        let mut layer2 = Layer::new(GridData::from(mk(
+            1,
+            2,
+            Encoding::U8,
+            1.0,
+            Pose::default(),
+            vec![3u8, 4],
+        )));
         layer2.set_global_property("name", "second");
         let collection = RasterCollection {
             layers: vec![layer1, layer2],
@@ -1221,7 +1287,14 @@ mod tests {
 
     #[test]
     fn round_trip_i16_and_custom_tags() {
-        let mut layer = Layer::new(GridData::from(mk(1, 3, Encoding::I16, 1.0, Pose::default(), vec![-2i16, 0, 17])));
+        let mut layer = Layer::new(GridData::from(mk(
+            1,
+            3,
+            Encoding::I16,
+            1.0,
+            Pose::default(),
+            vec![-2i16, 0, 17],
+        )));
         layer.custom_tags.insert(50001, vec![42, 43]);
         let collection = RasterCollection {
             layers: vec![layer],
@@ -1250,7 +1323,14 @@ mod tests {
 
     #[test]
     fn round_trip_gdal_nodata_and_geo_ascii() {
-        let mut layer = Layer::new(GridData::from(mk(1, 2, Encoding::U8, 1.0, Pose::default(), vec![1u8, 2])));
+        let mut layer = Layer::new(GridData::from(mk(
+            1,
+            2,
+            Encoding::U8,
+            1.0,
+            Pose::default(),
+            vec![1u8, 2],
+        )));
         layer.datum = Geo::new(47.5, 8.5, 200.0);
         layer.resolution = 1.0;
         layer.no_data_value = Some(-9999.0);
@@ -1283,7 +1363,14 @@ mod tests {
 
     #[test]
     fn emits_real_geotiff_model_tags() {
-        let mut layer = Layer::new(GridData::from(mk(4, 4, Encoding::U8, 1.0, Pose::default(), vec![0u8; 16])));
+        let mut layer = Layer::new(GridData::from(mk(
+            4,
+            4,
+            Encoding::U8,
+            1.0,
+            Pose::default(),
+            vec![0u8; 16],
+        )));
         layer.datum = Geo::new(47.5, 8.5, 200.0);
         layer.resolution = 1.0;
 
@@ -1309,7 +1396,14 @@ mod tests {
 
     #[test]
     fn round_trip_f32() {
-        let layer = Layer::new(GridData::from(mk(1, 2, Encoding::F32, 1.0, Pose::default(), vec![1.5f32, -2.25])));
+        let layer = Layer::new(GridData::from(mk(
+            1,
+            2,
+            Encoding::F32,
+            1.0,
+            Pose::default(),
+            vec![1.5f32, -2.25],
+        )));
         let collection = RasterCollection {
             layers: vec![layer],
             datum: Geo::default(),
@@ -1401,7 +1495,11 @@ mod tests {
     fn round_trip_rotated_grid() {
         let pose = Pose {
             point: Point::new(0.0, 0.0, 0.0),
-            rotation: Quaternion::from_euler(datapod::Euler::new(0.0, 0.0, std::f64::consts::FRAC_PI_4)),
+            rotation: Quaternion::from_euler(datapod::Euler::new(
+                0.0,
+                0.0,
+                std::f64::consts::FRAC_PI_4,
+            )),
         };
         let grid = mk(8, 8, Encoding::U8, 1.0, pose, vec![7u8; 64]);
         let mut layer = Layer::new(GridData::from(grid));
@@ -1409,7 +1507,11 @@ mod tests {
         layer.resolution = 1.0;
         layer.shift = Pose {
             point: Point::new(0.0, 0.0, 0.0),
-            rotation: Quaternion::from_euler(datapod::Euler::new(0.0, 0.0, std::f64::consts::FRAC_PI_4)),
+            rotation: Quaternion::from_euler(datapod::Euler::new(
+                0.0,
+                0.0,
+                std::f64::consts::FRAC_PI_4,
+            )),
         };
         let collection = RasterCollection {
             layers: vec![layer],
@@ -1478,12 +1580,7 @@ mod tests {
         bytes.extend_from_slice(b"II");
         bytes.extend_from_slice(&42u16.to_le_bytes());
         bytes.extend_from_slice(&20u32.to_le_bytes());
-        bytes.extend_from_slice(&[
-            10, 20, 30,
-            40, 50, 60,
-            70, 80, 90,
-            100, 110, 120,
-        ]);
+        bytes.extend_from_slice(&[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]);
         assert_eq!(bytes.len(), 20);
         let entry_count: u16 = 11;
         bytes.extend_from_slice(&entry_count.to_le_bytes());
@@ -1590,7 +1687,14 @@ mod tests {
 
     #[test]
     fn round_trip_big_endian_writer() {
-        let layer = Layer::new(GridData::from(mk(2, 3, Encoding::I16, 1.0, Pose::default(), vec![-4000i16, -1, 0, 1, 2, 30000])));
+        let layer = Layer::new(GridData::from(mk(
+            2,
+            3,
+            Encoding::I16,
+            1.0,
+            Pose::default(),
+            vec![-4000i16, -1, 0, 1, 2, 30000],
+        )));
         let collection = RasterCollection {
             layers: vec![layer],
             datum: Geo::default(),

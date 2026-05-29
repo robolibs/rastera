@@ -7,17 +7,19 @@ ifeq ($(PROJECT_NAME),)
 endif
 
 TOP_DIR := $(CURDIR)
-CARGO ?= cargo
+CARGO := cargo
 EXAMPLE ?= main
+
+HAS_REL := $(shell command -v git-rel 2>/dev/null)
 
 $(info ------------------------------------------)
 $(info Project: $(PROJECT_NAME) v$(PROJECT_VERSION))
 $(info ------------------------------------------)
 
-.PHONY: build b compile c run r test t check fmt clean help h test-python c-demo python-basic python-rgba
+.PHONY: build b compile c run r test t check fmt bench clean help h
 
 build:
-	@$(CARGO) build --lib --examples
+	@$(CARGO) build --lib
 
 b: build
 
@@ -37,18 +39,6 @@ test:
 
 t: test
 
-test-python:
-	@$(CARGO) check --features python
-
-c-demo:
-	@$(MAKE) -C examples/c_abi run CARGO="$(CARGO)"
-
-python-basic:
-	@$(MAKE) -C examples/python_binding basic CARGO="$(CARGO)"
-
-python-rgba:
-	@$(MAKE) -C examples/python_binding rgba CARGO="$(CARGO)"
-
 check:
 	@$(CARGO) check --all-targets
 
@@ -57,30 +47,41 @@ fmt:
 
 clean:
 	@$(CARGO) clean
-	@$(MAKE) -C examples/python_binding clean 2>/dev/null || true
+
+docs:
+	@command -v mdbook >/dev/null 2>&1 || { echo "mdbook is not installed. Please install it first."; exit 1; }
+	@mdbook build $(TOP_DIR)/book --dest-dir $(TOP_DIR)/docs
+	@git add --all && git commit -m "docs: building website/mdbook"
+
+release:
+	@if [ -z "$(HAS_REL)" ]; then \
+		echo "git-rel is not installed. Please install it first."; \
+		exit 1; \
+	fi
+	@if [ -z "$(TYPE)" ]; then \
+		echo "Release type not specified. Use 'make release TYPE=[patch|minor|major|m.m.p]'"; \
+		exit 1; \
+	fi
+	@git rel $(TYPE)
 
 help:
 	@echo
 	@echo "Usage: make [target]"
 	@echo
 	@echo "Available targets:"
-	@echo "  build          Build library and Rust examples"
-	@echo "  compile        Clean and rebuild"
-	@echo "  run            Run a Rust example (EXAMPLE=main by default)"
-	@echo "  test           Run all tests"
-	@echo "  test-python    Type-check with the python feature enabled"
-	@echo "  c-demo         Build and run the C ABI demo (examples/c_abi/demo.c)"
-	@echo "  python-basic   Build wheel via maturin and run examples/python_binding/basic.py"
-	@echo "  python-rgba    Build wheel via maturin and run examples/python_binding/rgba.py"
-	@echo "  check          Run cargo check on all targets"
-	@echo "  fmt            Format the workspace"
-	@echo "  clean          Remove Cargo build artifacts + Python venv"
+	@echo "  build        Build the library"
+	@echo "  compile      Clean and rebuild"
+	@echo "  run          Run a development example (if examples exist)"
+	@echo "  test         Run all tests"
+	@echo "  check        Run cargo check on all targets"
+	@echo "  fmt          Format the workspace"
+	@echo "  clean        Remove Cargo build artifacts"
+	@echo "  docs         Build the documentation"
+	@echo "  release      Release a new version"
 	@echo
 	@echo "Examples:"
 	@echo "  make run"
-	@echo "  make run EXAMPLE=rgba_image"
-	@echo "  make c-demo"
-	@echo "  make python-basic"
+	@echo "  make run EXAMPLE=main"
 	@echo
 
 h: help

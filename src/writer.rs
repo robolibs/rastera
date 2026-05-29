@@ -193,7 +193,11 @@ fn encode_layer(
     );
     let num_strips = height.div_ceil(rows_per_strip);
 
-    let planar_config = if options.planar_config == 2 { 2u16 } else { 1u16 };
+    let planar_config = if options.planar_config == 2 {
+        2u16
+    } else {
+        1u16
+    };
     let num_planes = if planar_config == 2 {
         samples_per_pixel as u32
     } else {
@@ -204,14 +208,8 @@ fn encode_layer(
         for strip_idx in 0..num_strips {
             let start_row = strip_idx * rows_per_strip;
             let end_row = ((strip_idx + 1) * rows_per_strip).min(height);
-            let bytes = encode_strip_bytes(
-                &layer.grid,
-                start_row,
-                end_row,
-                bo,
-                planar_config,
-                plane,
-            )?;
+            let bytes =
+                encode_strip_bytes(&layer.grid, start_row, end_row, bo, planar_config, plane)?;
             strips.push(EncodedStrip { bytes });
         }
     }
@@ -434,10 +432,7 @@ fn encode_layer(
                 value_or_offset: u64::from(values[0]),
             });
         } else {
-            let bytes = values
-                .iter()
-                .flat_map(|v| bo.u32(*v))
-                .collect::<Vec<_>>();
+            let bytes = values.iter().flat_map(|v| bo.u32(*v)).collect::<Vec<_>>();
             payloads.push(Payload { tag: *tag, bytes });
             entries.push(IfdEntry {
                 tag: *tag,
@@ -565,7 +560,7 @@ fn encode_inline_value(entry: &IfdEntry, bo: ByteOrder, bigtiff: bool) -> Vec<u8
         TIFF_TYPE_ASCII => 1,
         TIFF_TYPE_SHORT => 2,
         TIFF_TYPE_LONG => 4,
-        16 => 8, // LONG8 (BigTIFF)
+        16 => 8,         // LONG8 (BigTIFF)
         _ => field_size, // DOUBLE / unknown — value_or_offset is always an out-of-line offset
     };
     let total = element_size * entry.count as usize;
@@ -987,14 +982,20 @@ fn build_geotiff_tags(layer: &Layer, is_rotated: bool, bo: ByteOrder) -> Result<
         scale.extend_from_slice(&bo.f64(0.0));
 
         let mut tiepoint = Vec::with_capacity(48);
-        for v in [0.0, 0.0, 0.0, top_left_lon, top_left_lat, center_wgs.altitude] {
+        for v in [
+            0.0,
+            0.0,
+            0.0,
+            top_left_lon,
+            top_left_lat,
+            center_wgs.altitude,
+        ] {
             tiepoint.extend_from_slice(&bo.f64(v));
         }
         (Some(scale), Some(tiepoint), None)
     };
 
-    let has_geo_ascii =
-        !layer.geo_ascii_params.is_empty() || !layer.vertical_citation.is_empty();
+    let has_geo_ascii = !layer.geo_ascii_params.is_empty() || !layer.vertical_citation.is_empty();
     let has_vertical_datum = layer.vertical_datum.is_some();
     let has_vertical_units = layer.vertical_units.is_some();
     let has_vertical_citation = !layer.vertical_citation.is_empty();

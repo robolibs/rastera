@@ -8,7 +8,7 @@
 
 use std::env;
 
-use datapod::{Geo, Grid, Pose, Vector};
+use datapod::{Encoding, Geo, Grid, Pose};
 use rastera::{
     GridData, Layer, RasterCollection, WriteOptions, read_raster_collection,
     write_raster_collection,
@@ -23,10 +23,11 @@ fn main() -> rastera::Result<()> {
     let grid = Grid {
         rows,
         cols,
+        encoding: Encoding::I16,
         resolution: 1.0,
-        centered: true,
+        centered: 1,
         pose: Pose::default(),
-        data: Vector::from(data.clone()),
+        data: bytemuck::cast_slice(&data).to_vec(),
     };
     let layer = Layer::new(GridData::from(grid));
 
@@ -54,13 +55,14 @@ fn main() -> rastera::Result<()> {
         let parsed = read_raster_collection(path)?;
         match &parsed.layers[0].grid {
             GridData::I16(g) => {
-                assert_eq!(g.data.as_slice(), data.as_slice());
+                let parsed_data: &[i16] = bytemuck::cast_slice(&g.data);
+                assert_eq!(parsed_data, data.as_slice());
                 println!(
                     "{label}: shape={}x{} first={} last={}",
                     g.rows,
                     g.cols,
-                    g.data[0],
-                    g.data[g.data.as_slice().len() - 1]
+                    parsed_data[0],
+                    parsed_data[parsed_data.len() - 1]
                 );
             }
             _ => unreachable!("wrote i16"),
