@@ -57,6 +57,9 @@ impl From<Grid> for GridData {
             Encoding::Rgba8 | Encoding::Rgb8 => Self::Rgba8(g),
             // U64 / I64 don't have a dedicated GridData variant; treat as U8.
             Encoding::U64 | Encoding::I64 => Self::U8(g),
+            // `Encoding` is a newtype over u32; any future/unknown encoding
+            // falls back to the raw byte view.
+            _ => Self::U8(g),
         }
     }
 }

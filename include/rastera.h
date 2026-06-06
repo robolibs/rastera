@@ -1,15 +1,25 @@
 #ifndef RASTERA_H
 #define RASTERA_H
 
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define TIFF_RESERVED_MAX 32767
 
-typedef struct RasteraRasterHandle RasteraRasterHandle;
+#define PRIVATE_TAG_MIN 32768
+
+#define RASTERA_RESERVED_MIN 50000
+
+#define RASTERA_RESERVED_MAX 50999
+
+#define GLOBAL_PROPERTIES_BASE_TAG 50100
+
+typedef struct RasteraRaster RasteraRaster;
 
 typedef struct {
   double latitude;
@@ -42,87 +52,92 @@ typedef struct {
   uint8_t a;
 } RasteraRgba;
 
-/* Error handling */
-const char* rastera_last_error_message(void);
-void rastera_string_free(char* ptr);
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
-/* Raster lifecycle */
-RasteraRasterHandle* rastera_raster_new(
-    RasteraGeo3 datum,
-    RasteraPose shift,
-    double resolution);
-RasteraRasterHandle* rastera_raster_from_file(const char* path);
-bool rastera_raster_to_file(const RasteraRasterHandle* handle, const char* path);
-void rastera_raster_free(RasteraRasterHandle* handle);
+const char *rastera_last_error_message(void);
 
-/* Raster metadata */
-bool rastera_raster_get_datum(const RasteraRasterHandle* handle, RasteraGeo3* out);
-bool rastera_raster_set_datum(RasteraRasterHandle* handle, RasteraGeo3 datum);
-bool rastera_raster_get_shift(const RasteraRasterHandle* handle, RasteraPose* out);
-bool rastera_raster_set_shift(RasteraRasterHandle* handle, RasteraPose shift);
-double rastera_raster_get_resolution(const RasteraRasterHandle* handle);
-bool rastera_raster_set_resolution(RasteraRasterHandle* handle, double resolution);
-bool rastera_raster_set_global_property(
-    RasteraRasterHandle* handle,
-    const char* key,
-    const char* value);
-char* rastera_raster_get_global_property(
-    const RasteraRasterHandle* handle,
-    const char* key);
+void rastera_string_free(char *ptr);
 
-/* Grid layer management (indexed U8 grids) */
-size_t rastera_raster_grid_count(const RasteraRasterHandle* handle);
-bool rastera_raster_add_grid(
-    RasteraRasterHandle* handle,
-    size_t width,
-    size_t height,
-    const char* name,
-    const char* grid_type);
-bool rastera_raster_remove_grid(RasteraRasterHandle* handle, size_t index);
-char* rastera_raster_grid_name(const RasteraRasterHandle* handle, size_t index);
-char* rastera_raster_grid_type(const RasteraRasterHandle* handle, size_t index);
-bool rastera_raster_grid_shape(
-    const RasteraRasterHandle* handle,
-    size_t index,
-    size_t* out_rows,
-    size_t* out_cols);
-bool rastera_raster_grid_get_u8(
-    const RasteraRasterHandle* handle,
-    size_t index,
-    size_t row,
-    size_t col,
-    uint8_t* out);
-bool rastera_raster_grid_set_u8(
-    RasteraRasterHandle* handle,
-    size_t index,
-    size_t row,
-    size_t col,
-    uint8_t value);
-bool rastera_raster_grid_fill_u8(
-    RasteraRasterHandle* handle,
-    size_t index,
-    uint8_t value);
-bool rastera_raster_grid_find_by_name(
-    const RasteraRasterHandle* handle,
-    const char* name,
-    size_t* out_index);
+RasteraRaster *rastera_raster_new(RasteraGeo3 datum, RasteraPose shift, double resolution);
 
-/* Standalone RGBA helpers */
-bool rastera_write_rgba8(
-    const char* path,
-    size_t rows,
-    size_t cols,
-    const RasteraRgba* pixels,
-    RasteraGeo3 datum,
-    double resolution);
-bool rastera_read_rgba8_size(const char* path, size_t* out_rows, size_t* out_cols);
-bool rastera_read_rgba8_into(
-    const char* path,
-    RasteraRgba* out_pixels,
-    size_t capacity);
+RasteraRaster *rastera_raster_from_file(const char *path);
+
+bool rastera_raster_to_file(const RasteraRaster *handle, const char *path);
+
+void rastera_raster_free(RasteraRaster *handle);
+
+bool rastera_raster_get_datum(const RasteraRaster *handle, RasteraGeo3 *out);
+
+bool rastera_raster_set_datum(RasteraRaster *handle, RasteraGeo3 datum);
+
+bool rastera_raster_get_shift(const RasteraRaster *handle, RasteraPose *out);
+
+bool rastera_raster_set_shift(RasteraRaster *handle, RasteraPose shift);
+
+double rastera_raster_get_resolution(const RasteraRaster *handle);
+
+bool rastera_raster_set_resolution(RasteraRaster *handle, double resolution);
+
+bool rastera_raster_set_global_property(RasteraRaster *handle, const char *key, const char *value);
+
+char *rastera_raster_get_global_property(const RasteraRaster *handle, const char *key);
+
+uintptr_t rastera_raster_grid_count(const RasteraRaster *handle);
+
+bool rastera_raster_add_grid(RasteraRaster *handle,
+                             uintptr_t width,
+                             uintptr_t height,
+                             const char *name,
+                             const char *grid_type);
+
+bool rastera_raster_remove_grid(RasteraRaster *handle, uintptr_t index);
+
+char *rastera_raster_grid_name(const RasteraRaster *handle, uintptr_t index);
+
+char *rastera_raster_grid_type(const RasteraRaster *handle, uintptr_t index);
+
+bool rastera_raster_grid_shape(const RasteraRaster *handle,
+                               uintptr_t index,
+                               uintptr_t *out_rows,
+                               uintptr_t *out_cols);
+
+bool rastera_raster_grid_get_u8(const RasteraRaster *handle,
+                                uintptr_t index,
+                                uintptr_t row,
+                                uintptr_t col,
+                                uint8_t *out);
+
+bool rastera_raster_grid_set_u8(RasteraRaster *handle,
+                                uintptr_t index,
+                                uintptr_t row,
+                                uintptr_t col,
+                                uint8_t value);
+
+bool rastera_raster_grid_fill_u8(RasteraRaster *handle, uintptr_t index, uint8_t value);
+
+bool rastera_raster_grid_find_by_name(const RasteraRaster *handle,
+                                      const char *name,
+                                      uintptr_t *out_index);
+
+bool rastera_write_rgba8(const char *path,
+                         uintptr_t rows,
+                         uintptr_t cols,
+                         const RasteraRgba *pixels,
+                         RasteraGeo3 datum,
+                         double resolution);
+
+bool rastera_read_rgba8_size(const char *path, uintptr_t *out_rows, uintptr_t *out_cols);
+
+/**
+ * Read an RGBA raster into a caller-provided buffer. `capacity` must be at
+ * least `rows * cols`, as reported by `rastera_read_rgba8_size`.
+ */
+bool rastera_read_rgba8_into(const char *path, RasteraRgba *out_pixels, uintptr_t capacity);
 
 #ifdef __cplusplus
-}
-#endif
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* RASTERA_H */
+#endif  /* RASTERA_H */

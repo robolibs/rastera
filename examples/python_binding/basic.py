@@ -1,7 +1,7 @@
 """Minimal rastera Python binding demo.
 
 Build with `make develop` in this directory first, which runs
-`maturin develop --features python-extension`.
+`maturin develop --features python`.
 """
 
 import rastera

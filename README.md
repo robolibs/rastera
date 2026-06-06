@@ -104,7 +104,7 @@ All fallible functions return `bool` (or `NULL`) on failure; call `rastera_last_
 
 ## Python bindings
 
-Built via [maturin](https://www.maturin.rs/) with the `python-extension` feature. A `.venv` + `maturin develop` workflow is wrapped in the example Makefile:
+Built via [maturin](https://www.maturin.rs/) with the `python` feature. A `.venv` + `maturin develop` workflow is wrapped in the example Makefile:
 
 ```bash
 make python-basic   # runs examples/python_binding/basic.py
@@ -165,7 +165,7 @@ src/
   parser.rs       TIFF / GeoTIFF parser
   raster.rs       High-level Raster wrapper
   ffi.rs          C ABI layer (always compiled)
-  python.rs       PyO3 bindings (gated behind the `python` feature)
+  python/mod.rs   PyO3 bindings (gated behind the `python` feature)
 include/
   rastera.h       Public C header
 examples/

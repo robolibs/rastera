@@ -13,7 +13,7 @@ int main(void) {
       .rotation = {1.0, 0.0, 0.0, 0.0},
   };
 
-  RasteraRasterHandle* raster = rastera_raster_new(datum, shift, 1.0);
+  RasteraRaster* raster = rastera_raster_new(datum, shift, 1.0);
   if (raster == NULL) {
     fprintf(stderr, "rastera_raster_new failed: %s\n",
             rastera_last_error_message());
@@ -57,7 +57,7 @@ int main(void) {
   printf("wrote %s\n", OUT_PATH);
   rastera_raster_free(raster);
 
-  RasteraRasterHandle* loaded = rastera_raster_from_file(OUT_PATH);
+  RasteraRaster* loaded = rastera_raster_from_file(OUT_PATH);
   if (loaded == NULL) {
     fprintf(stderr, "from_file failed: %s\n", rastera_last_error_message());
     return 1;

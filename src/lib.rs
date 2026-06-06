@@ -4,6 +4,11 @@
 //! the planned TIFF and GeoTIFF parser/writer layers.
 
 #![deny(unsafe_op_in_unsafe_fn)]
+#![allow(
+    clippy::collapsible_if,
+    clippy::manual_is_multiple_of,
+    clippy::type_complexity
+)]
 
 pub mod color;
 pub mod error;
