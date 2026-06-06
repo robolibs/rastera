@@ -1,9 +1,14 @@
-//! C ABI layer for rastera.
+//! C ABI for rastera.
 //!
-//! Exposes an opaque `RasteraRasterHandle` wrapping the high-level [`crate::Raster`]
-//! along with functions to create rasters, add grids, read/write GeoTIFFs, access
-//! grid metadata, and retrieve per-pixel values. Errors are captured in a
-//! thread-local slot and surfaced through [`rastera_last_error_message`].
+//! Conventions: opaque Box-backed handles (free with the matching
+//! *_free); fallible calls return bool/int with the reason in the
+//! thread-local rastera_last_error_message(); borrowed views are valid
+//! only for the lifetime documented by the handle they came from.
+//!
+//! `include/rastera.h` is generated from this file by cbindgen.
+
+// extern "C" fns take raw pointers from C and deref them by design.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString, c_char};
@@ -59,7 +64,7 @@ pub struct RasteraRgba {
     pub a: u8,
 }
 
-pub struct RasteraRasterHandle {
+pub struct RasteraRaster {
     inner: Raster,
 }
 
@@ -164,18 +169,14 @@ fn cstr_to_str<'a>(value: *const c_char, label: &str) -> crate::Result<&'a str> 
         .map_err(|_| crate::Error::Message(format!("{label} must be valid UTF-8")))
 }
 
-fn raster_from_ptr_mut<'a>(
-    handle: *mut RasteraRasterHandle,
-) -> crate::Result<&'a mut RasteraRasterHandle> {
+fn raster_from_ptr_mut<'a>(handle: *mut RasteraRaster) -> crate::Result<&'a mut RasteraRaster> {
     if handle.is_null() {
         return Err(crate::Error::Message("null raster handle".into()));
     }
     Ok(unsafe { &mut *handle })
 }
 
-fn raster_from_ptr<'a>(
-    handle: *const RasteraRasterHandle,
-) -> crate::Result<&'a RasteraRasterHandle> {
+fn raster_from_ptr<'a>(handle: *const RasteraRaster) -> crate::Result<&'a RasteraRaster> {
     if handle.is_null() {
         return Err(crate::Error::Message("null raster handle".into()));
     }
@@ -221,18 +222,18 @@ pub extern "C" fn rastera_raster_new(
     datum: RasteraGeo3,
     shift: RasteraPose,
     resolution: f64,
-) -> *mut RasteraRasterHandle {
+) -> *mut RasteraRaster {
     clear_last_error();
-    Box::into_raw(Box::new(RasteraRasterHandle {
+    Box::into_raw(Box::new(RasteraRaster {
         inner: Raster::new(datum.into(), shift.into(), resolution),
     }))
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_from_file(path: *const c_char) -> *mut RasteraRasterHandle {
+pub extern "C" fn rastera_raster_from_file(path: *const c_char) -> *mut RasteraRaster {
     clear_last_error();
     match cstr_to_str(path, "path").and_then(Raster::from_file) {
-        Ok(inner) => Box::into_raw(Box::new(RasteraRasterHandle { inner })),
+        Ok(inner) => Box::into_raw(Box::new(RasteraRaster { inner })),
         Err(err) => {
             set_last_error(err.to_string());
             ptr::null_mut()
@@ -242,7 +243,7 @@ pub extern "C" fn rastera_raster_from_file(path: *const c_char) -> *mut RasteraR
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_to_file(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     path: *const c_char,
 ) -> bool {
     match raster_from_ptr(handle)
@@ -254,7 +255,7 @@ pub extern "C" fn rastera_raster_to_file(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_free(handle: *mut RasteraRasterHandle) {
+pub extern "C" fn rastera_raster_free(handle: *mut RasteraRaster) {
     if !handle.is_null() {
         unsafe {
             drop(Box::from_raw(handle));
@@ -266,7 +267,7 @@ pub extern "C" fn rastera_raster_free(handle: *mut RasteraRasterHandle) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_get_datum(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     out: *mut RasteraGeo3,
 ) -> bool {
     match raster_from_ptr(handle) {
@@ -276,10 +277,7 @@ pub extern "C" fn rastera_raster_get_datum(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_set_datum(
-    handle: *mut RasteraRasterHandle,
-    datum: RasteraGeo3,
-) -> bool {
+pub extern "C" fn rastera_raster_set_datum(handle: *mut RasteraRaster, datum: RasteraGeo3) -> bool {
     match raster_from_ptr_mut(handle) {
         Ok(handle) => {
             handle.inner.set_datum(datum.into());
@@ -291,7 +289,7 @@ pub extern "C" fn rastera_raster_set_datum(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_get_shift(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     out: *mut RasteraPose,
 ) -> bool {
     match raster_from_ptr(handle) {
@@ -301,10 +299,7 @@ pub extern "C" fn rastera_raster_get_shift(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_set_shift(
-    handle: *mut RasteraRasterHandle,
-    shift: RasteraPose,
-) -> bool {
+pub extern "C" fn rastera_raster_set_shift(handle: *mut RasteraRaster, shift: RasteraPose) -> bool {
     match raster_from_ptr_mut(handle) {
         Ok(handle) => {
             handle.inner.set_shift(shift.into());
@@ -315,7 +310,7 @@ pub extern "C" fn rastera_raster_set_shift(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_get_resolution(handle: *const RasteraRasterHandle) -> f64 {
+pub extern "C" fn rastera_raster_get_resolution(handle: *const RasteraRaster) -> f64 {
     match raster_from_ptr(handle) {
         Ok(handle) => handle.inner.resolution(),
         Err(err) => {
@@ -327,7 +322,7 @@ pub extern "C" fn rastera_raster_get_resolution(handle: *const RasteraRasterHand
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_set_resolution(
-    handle: *mut RasteraRasterHandle,
+    handle: *mut RasteraRaster,
     resolution: f64,
 ) -> bool {
     match raster_from_ptr_mut(handle) {
@@ -341,7 +336,7 @@ pub extern "C" fn rastera_raster_set_resolution(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_set_global_property(
-    handle: *mut RasteraRasterHandle,
+    handle: *mut RasteraRaster,
     key: *const c_char,
     value: *const c_char,
 ) -> bool {
@@ -362,7 +357,7 @@ pub extern "C" fn rastera_raster_set_global_property(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_get_global_property(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     key: *const c_char,
 ) -> *mut c_char {
     clear_last_error();
@@ -381,7 +376,7 @@ pub extern "C" fn rastera_raster_get_global_property(
 // ----- Grid layer management ---------------------------------------------
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_grid_count(handle: *const RasteraRasterHandle) -> usize {
+pub extern "C" fn rastera_raster_grid_count(handle: *const RasteraRaster) -> usize {
     raster_from_ptr(handle)
         .map(|h| h.inner.grid_count())
         .unwrap_or(0)
@@ -389,7 +384,7 @@ pub extern "C" fn rastera_raster_grid_count(handle: *const RasteraRasterHandle) 
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_add_grid(
-    handle: *mut RasteraRasterHandle,
+    handle: *mut RasteraRaster,
     width: usize,
     height: usize,
     name: *const c_char,
@@ -413,10 +408,7 @@ pub extern "C" fn rastera_raster_add_grid(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rastera_raster_remove_grid(
-    handle: *mut RasteraRasterHandle,
-    index: usize,
-) -> bool {
+pub extern "C" fn rastera_raster_remove_grid(handle: *mut RasteraRaster, index: usize) -> bool {
     match raster_from_ptr_mut(handle) {
         Ok(handle) => {
             handle.inner.remove_grid(index);
@@ -428,7 +420,7 @@ pub extern "C" fn rastera_raster_remove_grid(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_name(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     index: usize,
 ) -> *mut c_char {
     clear_last_error();
@@ -443,7 +435,7 @@ pub extern "C" fn rastera_raster_grid_name(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_type(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     index: usize,
 ) -> *mut c_char {
     clear_last_error();
@@ -458,7 +450,7 @@ pub extern "C" fn rastera_raster_grid_type(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_shape(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     index: usize,
     out_rows: *mut usize,
     out_cols: *mut usize,
@@ -480,7 +472,7 @@ pub extern "C" fn rastera_raster_grid_shape(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_get_u8(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     index: usize,
     row: usize,
     col: usize,
@@ -499,7 +491,7 @@ pub extern "C" fn rastera_raster_grid_get_u8(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_set_u8(
-    handle: *mut RasteraRasterHandle,
+    handle: *mut RasteraRaster,
     index: usize,
     row: usize,
     col: usize,
@@ -519,7 +511,7 @@ pub extern "C" fn rastera_raster_grid_set_u8(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_fill_u8(
-    handle: *mut RasteraRasterHandle,
+    handle: *mut RasteraRaster,
     index: usize,
     value: u8,
 ) -> bool {
@@ -536,7 +528,7 @@ pub extern "C" fn rastera_raster_grid_fill_u8(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rastera_raster_grid_find_by_name(
-    handle: *const RasteraRasterHandle,
+    handle: *const RasteraRaster,
     name: *const c_char,
     out_index: *mut usize,
 ) -> bool {

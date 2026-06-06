@@ -8,17 +8,18 @@
 //!   RGBA GeoTIFF in one call
 //! - `read_rgba8(path) -> (rows, cols, list of (r, g, b, a) tuples)`
 //!
-//! Build with `maturin develop --features python-extension`.
+//! Build with `maturin develop --features python`.
 
 use std::collections::HashMap;
 
-use datapod::{Geo, Point, Pose, Quaternion};
+use datapod::{Encoding, Geo, Point, Pose, Quaternion};
 use pyo3::exceptions::{PyIndexError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use pyo3::wrap_pyfunction;
 
 use crate::color::Rgba8;
+use crate::types::make_grid;
 use crate::{GridData, Layer, Raster, RasterCollection, WriteOptions};
 
 fn py_runtime_error(err: crate::Error) -> PyErr {
@@ -190,7 +191,7 @@ impl PyRaster {
             .inner
             .get_grid(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
-        Ok((grid.grid.rows, grid.grid.cols))
+        Ok((grid.grid.rows as usize, grid.grid.cols as usize))
     }
 
     fn grid_name(&self, index: usize) -> PyResult<String> {
@@ -214,10 +215,10 @@ impl PyRaster {
             .inner
             .get_grid(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
-        if row >= grid.grid.rows || col >= grid.grid.cols {
+        if row >= grid.grid.rows as usize || col >= grid.grid.cols as usize {
             return Err(PyIndexError::new_err("pixel index out of range"));
         }
-        Ok(grid.grid[(row, col)])
+        Ok(grid.get(row, col))
     }
 
     fn grid_set(&mut self, index: usize, row: usize, col: usize, value: u8) -> PyResult<()> {
@@ -225,10 +226,10 @@ impl PyRaster {
             .inner
             .get_grid_mut(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
-        if row >= grid.grid.rows || col >= grid.grid.cols {
+        if row >= grid.grid.rows as usize || col >= grid.grid.cols as usize {
             return Err(PyIndexError::new_err("pixel index out of range"));
         }
-        grid.grid[(row, col)] = value;
+        grid.set(row, col, value);
         Ok(())
     }
 
@@ -237,9 +238,9 @@ impl PyRaster {
             .inner
             .get_grid_mut(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
-        for r in 0..grid.grid.rows {
-            for c in 0..grid.grid.cols {
-                grid.grid[(r, c)] = value;
+        for r in 0..grid.grid.rows as usize {
+            for c in 0..grid.grid.cols as usize {
+                grid.set(r, c, value);
             }
         }
         Ok(())
@@ -251,7 +252,6 @@ impl PyRaster {
             .get_grid(index)
             .map_err(|_| PyIndexError::new_err("grid index out of range"))?;
         Ok(grid
-            .grid
             .grid
             .data
             .as_slice()
@@ -304,15 +304,16 @@ fn write_rgba8(
         .into_iter()
         .map(|(r, g, b, a)| Rgba8::new(r, g, b, a))
         .collect();
-    let grid = crate::local_geom::Grid {
-        rows,
-        cols,
+    let grid = make_grid(
+        rows as u32,
+        cols as u32,
+        Encoding::Rgba8,
         resolution,
-        centered: true,
-        pose: Pose::default(),
-        data: Vec::from(data),
-    };
-    let mut layer = Layer::new(GridData::from(grid));
+        true,
+        Pose::default(),
+        bytemuck::cast_slice(&data).to_vec(),
+    );
+    let mut layer = Layer::new(GridData::Rgba8(grid));
     layer.datum = geo_from_tuple(datum);
     layer.resolution = resolution;
     let collection = RasterCollection {
@@ -334,9 +335,7 @@ fn read_rgba8<'py>(py: Python<'py>, path: &str) -> PyResult<Bound<'py, PyDict>> 
         .ok_or_else(|| PyRuntimeError::new_err("no layers in file"))?;
     let (rows, cols) = layer.grid.dimensions();
     let pixels: Vec<(u8, u8, u8, u8)> = match &layer.grid {
-        GridData::Rgba8(g) => g
-            .data
-            .as_slice()
+        GridData::Rgba8(g) => bytemuck::cast_slice::<u8, Rgba8>(&g.data)
             .iter()
             .map(|p| (p.r, p.g, p.b, p.a))
             .collect(),
