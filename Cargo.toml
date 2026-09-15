@@ -10,7 +10,6 @@ include = [
     "Cargo.toml",
     "pyproject.toml",
     "README.md",
-    "PLAN.md",
     "include/**/*.h",
     "src/**/*.rs",
     "examples/**/*.rs",
@@ -36,3 +35,23 @@ pyo3 = { version = "0.23", optional = true, features = [
 ] }
 rgb = { version = "0.8", features = ["bytemuck"] }
 thiserror = "2.0"
+
+[[example]]
+name = "bigtiff"
+path = "examples/rust/bigtiff.rs"
+
+[[example]]
+name = "main"
+path = "examples/rust/main.rs"
+
+[[example]]
+name = "multi_layer"
+path = "examples/rust/multi_layer.rs"
+
+[[example]]
+name = "palette"
+path = "examples/rust/palette.rs"
+
+[[example]]
+name = "rgba_image"
+path = "examples/rust/rgba_image.rs"
