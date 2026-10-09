@@ -27,8 +27,8 @@ python-extension = ["python"]
 
 [dependencies]
 bytemuck = { version = "1", features = ["derive"] }
-concord = { git = "https://codeberg.org/robolibs/concord.git", tag = "0.1.2" }
-datapod = { git = "https://codeberg.org/robolibs/datapod.git", tag = "0.4.1" }
+concord = { git = "https://github.com/robolibs/concord", tag = "v0.1.6" }
+datapod = { git = "https://github.com/robolibs/datapod", tag = "0.6.2" }
 pyo3 = { version = "0.23", optional = true, features = [
     "abi3-py39",
     "extension-module",
