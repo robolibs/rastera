@@ -1,6 +1,6 @@
 [package]
 name = "rastera"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "Rust GeoTIFF and raster library translated from rastkit"
 license = "MIT"
@@ -10,7 +10,6 @@ include = [
     "Cargo.toml",
     "pyproject.toml",
     "README.md",
-    "PLAN.md",
     "include/**/*.h",
     "src/**/*.rs",
     "examples/**/*.rs",
@@ -28,11 +27,31 @@ python-extension = ["python"]
 
 [dependencies]
 bytemuck = { version = "1", features = ["derive"] }
-concord = { git = "https://codeberg.org/robolibs/concord.git", tag = "0.1.2" }
-datapod = { git = "https://codeberg.org/robolibs/datapod.git", tag = "0.4.1" }
+concord = { git = "https://github.com/robolibs/concord", tag = "v0.1.6" }
+datapod = { git = "https://github.com/robolibs/datapod", tag = "0.6.2" }
 pyo3 = { version = "0.23", optional = true, features = [
     "abi3-py39",
     "extension-module",
 ] }
 rgb = { version = "0.8", features = ["bytemuck"] }
 thiserror = "2.0"
+
+[[example]]
+name = "bigtiff"
+path = "examples/rust/bigtiff.rs"
+
+[[example]]
+name = "main"
+path = "examples/rust/main.rs"
+
+[[example]]
+name = "multi_layer"
+path = "examples/rust/multi_layer.rs"
+
+[[example]]
+name = "palette"
+path = "examples/rust/palette.rs"
+
+[[example]]
+name = "rgba_image"
+path = "examples/rust/rgba_image.rs"
