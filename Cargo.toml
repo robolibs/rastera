@@ -1,6 +1,6 @@
 [package]
 name = "rastera"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "Rust GeoTIFF and raster library translated from rastkit"
 license = "MIT"
